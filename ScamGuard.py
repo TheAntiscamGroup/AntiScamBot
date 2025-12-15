@@ -30,11 +30,9 @@ class ScamGuard(DiscordBot):
   async def setup_hook(self):
     # TODO: Make a fancy table for this in the future
     if (ConfigData["RunBackupEveryXHours"] > 0):
-      self.ConfigBackupInterval()
       self.PeriodicBackup.start()
       
     if (ConfigData["RunIdleCleanupEveryXHours"] > 0):
-      self.ConfigLeaveInterval()
       self.PeriodicLeave.start()
       
     self.HandleListenRelay.start()
