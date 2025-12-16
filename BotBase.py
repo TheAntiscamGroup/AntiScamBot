@@ -134,6 +134,9 @@ class DiscordBot(discord.Client):
   async def PostLogMessages(self):
     while (not self.LoggingMessageQueue.empty()):
       Message:str = self.LoggingMessageQueue.get_nowait()
+      # Truncate posted messages via queue
+      if (len(Message) > 2000):
+        Message = (Message[:1997] + "...")
       try:
         if (self.NotificationChannel is not None):
           await cast(discord.TextChannel, self.NotificationChannel).send(Message)
