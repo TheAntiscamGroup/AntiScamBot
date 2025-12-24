@@ -45,3 +45,8 @@ class RelayMessageType(CompareEnum):
   ProcessServerActivation=auto()
   Ping=auto()
   Kick=auto()
+  
+class ChannelPostPermissions(CompareEnum):
+  NoPerms=auto()
+  PostDirectly=auto()
+  CanThread=auto()

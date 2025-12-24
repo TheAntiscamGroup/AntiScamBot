@@ -5,7 +5,7 @@
 # This separation was originally due to Discord politics when ScamGuard was first developed.
 # Since then, everything can potentially envelop back into the main instance instead.
 from Logger import Logger, LogLevel
-from BotEnums import BanResult, RelayMessageType, ModerationAction
+from BotEnums import BanResult, ChannelPostPermissions, RelayMessageType, ModerationAction
 from Config import Config
 from BotConnections import RelayClient
 import discord, asyncio, json, aiohttp, io
@@ -460,32 +460,38 @@ Failed Copied Evidence Links:
     BotMember:discord.Member = Server.me
     # Try to find the channel that we can potentially post in
     ChannelSet:discord.TextChannel|None = None
-    CanPost:bool = await self.CanPostInChannel(Server.system_channel, BotMember, CanCreatePrivateThread)
-    # Welcome to the ugliest conditional
-    if (CanPost):
-      ChannelSet = Server.system_channel
-    else:
-      CanPost = await self.CanPostInChannel(Server.public_updates_channel, BotMember, CanCreatePrivateThread)
-      if (CanPost):
-        ChannelSet = Server.public_updates_channel
-      else:
-        CanPost = await self.CanPostInChannel(Server.safety_alerts_channel, BotMember, CanCreatePrivateThread)
-        if (CanPost):
-          ChannelSet = Server.safety_alerts_channel
+    ChannelPermissions:list[tuple[discord.TextChannel, ChannelPostPermissions]] = []
+    if (Server.system_channel is not None):
+      ChannelPermissions.append((Server.system_channel, self.GetChannelPostPerms(Server.system_channel, BotMember, CanCreatePrivateThread)))
+      
+    if (Server.public_updates_channel is not None):
+      ChannelPermissions.append((Server.public_updates_channel, self.GetChannelPostPerms(Server.public_updates_channel, BotMember, CanCreatePrivateThread)))
+    
+    if (Server.safety_alerts_channel is not None):
+      ChannelPermissions.append((Server.safety_alerts_channel, self.GetChannelPostPerms(Server.safety_alerts_channel, BotMember, CanCreatePrivateThread)))
+    
+    # Find how many of the above we have added.
+    StartingLength:int = len(ChannelPermissions)
+    
+    # Rank sort all the potential channels, max add 5 in addition to the above.
+    # I'm thinking it's better to go through the older channels first
+    # as the first few channels are probably things like "rules" and "info"
+    # and those are probably not ones we can message in anyways
+    OldestList = sorted(Server.text_channels, key=lambda chan: chan.created_at)
+    for OldChannel in OldestList:
+      # Break out on 5 for memory purposes.
+      if (len(ChannelPermissions) - StartingLength >= 5):
+        break
+      
+      HighestPermission:ChannelPostPermissions = self.GetChannelPostPerms(OldChannel, BotMember, CanCreatePrivateThread)
+      if (HighestPermission is not ChannelPostPermissions.NoPerms):
+        ChannelPermissions.append((OldChannel, HighestPermission))
 
-    # If we can't find an easy channel, then loop through all the channel objects    
-    if (ChannelSet is None):
-      # I'm thinking it's better to go through the older channels first
-      # as the first few channels are probably things like "rules" and "info"
-      # and those are probably not ones we can message in anyways
-      #
-      # We might eventually have to rank sort all these channels and walk the entire channel list to find a channel that's
-      # "good" for us. smh
-      OldestList = sorted(Server.text_channels, key=lambda chan: chan.created_at)
-      for OldChannel in OldestList:
-        if (await self.CanPostInChannel(OldChannel, BotMember, CanCreatePrivateThread)):
-          ChannelSet = OldChannel
-          break
+    # Sort the channels
+    ChannelPermissions.sort(key=lambda chan: chan[1], reverse=True)
+    # Whatever is at the top is our channel
+    if (len(ChannelPermissions) > 1):
+      ChannelSet = ChannelPermissions[0][0]
 
     # If we find a channel to send into
     if (ChannelSet is not None):
@@ -511,13 +517,17 @@ Failed Copied Evidence Links:
       Logger.Log(LogLevel.Log, f"Found Posting Channel `{ChannelSet.name}` for server {ServerStr}. Used Thread? {PostedInThread}")
     else:
       Logger.Log(LogLevel.Error, f"Could not find a channel for server {ServerId}")
-  
-  async def CanPostInChannel(self, channel: discord.TextChannel|None, GuildSelf:discord.Member, CheckThreads:bool) -> bool:
-    if (channel is None):
-      return False
 
-    ChannelPerms:discord.Permissions = channel.permissions_for(GuildSelf)
-    return (ChannelPerms.send_messages and ChannelPerms.embed_links) or (CheckThreads and ChannelPerms.create_private_threads)
+  def GetChannelPostPerms(self, channel: discord.TextChannel|None, GuildSelf:discord.Member, CheckThreads:bool) -> ChannelPostPermissions:
+    if (channel is not None):
+      ChannelPerms:discord.Permissions = channel.permissions_for(GuildSelf)
+      if (CheckThreads and ChannelPerms.create_private_threads):
+        return ChannelPostPermissions.CanThread
+      
+      if (ChannelPerms.send_messages and ChannelPerms.embed_links):
+        return ChannelPostPermissions.PostDirectly
+
+    return ChannelPostPermissions.NoPerms
   
   ### Webhook Management ###
   async def InstallWebhook(self, ServerId:int):
