@@ -478,6 +478,9 @@ Failed Copied Evidence Links:
       # I'm thinking it's better to go through the older channels first
       # as the first few channels are probably things like "rules" and "info"
       # and those are probably not ones we can message in anyways
+      #
+      # We might eventually have to rank sort all these channels and walk the entire channel list to find a channel that's
+      # "good" for us. smh
       OldestList = sorted(Server.text_channels, key=lambda chan: chan.created_at)
       for OldChannel in OldestList:
         if (await self.CanPostInChannel(OldChannel, BotMember, CanCreatePrivateThread)):
@@ -514,7 +517,7 @@ Failed Copied Evidence Links:
       return False
 
     ChannelPerms:discord.Permissions = channel.permissions_for(GuildSelf)
-    return ChannelPerms.send_messages or (CheckThreads and ChannelPerms.create_private_threads)
+    return (ChannelPerms.send_messages and ChannelPerms.embed_links) or (CheckThreads and ChannelPerms.create_private_threads)
   
   ### Webhook Management ###
   async def InstallWebhook(self, ServerId:int):
