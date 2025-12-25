@@ -460,38 +460,41 @@ Failed Copied Evidence Links:
     BotMember:discord.Member = Server.me
     # Try to find the channel that we can potentially post in
     ChannelSet:discord.TextChannel|None = None
-    ChannelPermissions:list[tuple[discord.TextChannel, ChannelPostPermissions]] = []
+    ChannelPermissionList:list[tuple[discord.TextChannel, ChannelPostPermissions]] = []
     if (Server.system_channel is not None):
-      ChannelPermissions.append((Server.system_channel, self.GetChannelPostPerms(Server.system_channel, BotMember, CanCreatePrivateThread)))
+      ChannelPermissionList.append((Server.system_channel, self.GetChannelPostPerms(Server.system_channel, BotMember, CanCreatePrivateThread)))
       
     if (Server.public_updates_channel is not None):
-      ChannelPermissions.append((Server.public_updates_channel, self.GetChannelPostPerms(Server.public_updates_channel, BotMember, CanCreatePrivateThread)))
+      ChannelPermissionList.append((Server.public_updates_channel, self.GetChannelPostPerms(Server.public_updates_channel, BotMember, CanCreatePrivateThread)))
     
     if (Server.safety_alerts_channel is not None):
-      ChannelPermissions.append((Server.safety_alerts_channel, self.GetChannelPostPerms(Server.safety_alerts_channel, BotMember, CanCreatePrivateThread)))
+      ChannelPermissionList.append((Server.safety_alerts_channel, self.GetChannelPostPerms(Server.safety_alerts_channel, BotMember, CanCreatePrivateThread)))
     
     # Find how many of the above we have added.
-    StartingLength:int = len(ChannelPermissions)
+    StartingLength:int = len(ChannelPermissionList)
     
     # Rank sort all the potential channels, max add 5 in addition to the above.
     # I'm thinking it's better to go through the older channels first
     # as the first few channels are probably things like "rules" and "info"
     # and those are probably not ones we can message in anyways
+    ChannelsQueried:int = 0
     OldestList = sorted(Server.text_channels, key=lambda chan: chan.created_at)
     for OldChannel in OldestList:
       # Break out on 5 for memory purposes.
-      if (len(ChannelPermissions) - StartingLength >= 5):
+      if (len(ChannelPermissionList) - StartingLength >= ConfigData["MaxRankSortForWelcomeMessage"] or 
+          ChannelsQueried >= ConfigData["MaxChannelsToQueryForWelcomeMessage"]):
         break
       
       HighestPermission:ChannelPostPermissions = self.GetChannelPostPerms(OldChannel, BotMember, CanCreatePrivateThread)
       if (HighestPermission is not ChannelPostPermissions.NoPerms):
-        ChannelPermissions.append((OldChannel, HighestPermission))
+        ChannelPermissionList.append((OldChannel, HighestPermission))
+      ChannelsQueried += 1
 
     # Sort the channels
-    ChannelPermissions.sort(key=lambda chan: chan[1], reverse=True)
+    ChannelPermissionList.sort(key=lambda chan: chan[1], reverse=True)
     # Whatever is at the top is our channel
-    if (len(ChannelPermissions) > 1):
-      ChannelSet = ChannelPermissions[0][0]
+    if (len(ChannelPermissionList) > 1):
+      ChannelSet = ChannelPermissionList[0][0]
 
     # If we find a channel to send into
     if (ChannelSet is not None):
@@ -508,15 +511,20 @@ Failed Copied Evidence Links:
         except:
           Logger.Log(LogLevel.Debug, f"Could not post in private thread in server {ServerStr}")
 
+      # We could not post in the thread or we have no thread posting abilities
       if (PostedInThread == False):
         try:
+          # double check to see if we can put embeds here, if not the embed argument will just be ignored when we call .send
+          if (self.GetChannelPostPerms(ChannelSet, BotMember, False) == ChannelPostPermissions.SendMessageOnly):
+            MentionStr += " " + Messages["first_time"]["message_only"].format(days=ConfigData["InactiveServerDayWindow"])
+            
           await ChannelSet.send(MentionStr, embed=PostEmbed, allowed_mentions=MentionPerms)
         except Exception as ex:
           Logger.Log(LogLevel.Error, f"Could not post message in {ServerStr} both Channel and PrivThread failed, got error {str(ex)}")
           return
       Logger.Log(LogLevel.Log, f"Found Posting Channel `{ChannelSet.name}` for server {ServerStr}. Used Thread? {PostedInThread}")
     else:
-      Logger.Log(LogLevel.Error, f"Could not find a channel for server {ServerId}")
+      Logger.Log(LogLevel.Error, f"Could not find a channel for server {ServerId} to post welcome message")
 
   def GetChannelPostPerms(self, channel: discord.TextChannel|None, GuildSelf:discord.Member, CheckThreads:bool) -> ChannelPostPermissions:
     if (channel is not None):
@@ -525,7 +533,9 @@ Failed Copied Evidence Links:
         return ChannelPostPermissions.CanThread
       
       if (ChannelPerms.send_messages and ChannelPerms.embed_links):
-        return ChannelPostPermissions.PostDirectly
+        return ChannelPostPermissions.SendMessageEmbed
+      elif (ChannelPerms.send_messages):
+        return ChannelPostPermissions.SendMessageOnly
 
     return ChannelPostPermissions.NoPerms
   

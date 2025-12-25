@@ -48,5 +48,6 @@ class RelayMessageType(CompareEnum):
   
 class ChannelPostPermissions(CompareEnum):
   NoPerms=auto()
-  PostDirectly=auto()
+  SendMessageOnly=auto()
+  SendMessageEmbed=auto()
   CanThread=auto()

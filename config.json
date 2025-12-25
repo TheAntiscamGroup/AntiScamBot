@@ -34,5 +34,7 @@
     "AllowWebhookInstall": true,
     "PostWelcomeMessages": true,
     "UseThreadsForWelcomeMessage": true,
+    "MaxRankSortForWelcomeMessage": 5,
+    "MaxChannelsToQueryForWelcomeMessage": 30, 
     "ConflictingBots": [849084039763591179, 235148962103951360]
 }

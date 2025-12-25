@@ -54,6 +54,7 @@ mod_role_desc="ScamGuard **requires a moderator role** in order to be able to ba
 activate_title="2. Activate ScamGuard Within {days} Days"
 activate_desc="Once proper permissions are set, a moderator or admin with the `Manage Bans` permission needs to run `/scamguard setup`.\n\nIf activation is not completed in {days} days, ScamGuard will automatically leave the server."
 footer="Feel free to remove this message, I won't try to post it again."
+message_only="Thanks for installing ScamGuard, please follow the next steps by giving ScamGuard a moderator role and then running `/scamguard setup` within the next {days} Days"
 
 [settings]
 mod_msg = "Granting ScamGuard access to a channel for moderators only is highly suggested. Warnings about bot operation conflicts will be posted there. Messages are sent very infrequently."
