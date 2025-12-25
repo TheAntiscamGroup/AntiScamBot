@@ -386,7 +386,7 @@ class DatabaseDriver():
     server = self.Database.scalars(stmt).first()
 
     if (server is None):
-      Logger.Log(LogLevel.Warn, f"Tried to load owner for non existant server: {ServerId}!")
+      Logger.Log(LogLevel.Warn, f"Tried to load owner for non-existent server: {ServerId}!")
       return None
 
     return int(server.owner_discord_user_id)
@@ -396,7 +396,7 @@ class DatabaseDriver():
     server = self.Database.scalars(stmt).first()
 
     if (server is None):
-      Logger.Log(LogLevel.Warn, f"Tried to load bot instance for non existant server: {ServerId}!")
+      Logger.Log(LogLevel.Warn, f"Tried to load bot instance for non-existent server: {ServerId}!")
       return None
 
     return int(server.bot_instance_id)
@@ -406,7 +406,7 @@ class DatabaseDriver():
     server = self.Database.scalars(stmt).first()
 
     if (server is None):
-      Logger.Log(LogLevel.Warn, f"Tried to load bot instance for non existant server: {ServerId}!")
+      Logger.Log(LogLevel.Warn, f"Tried to load bot instance for non-existent server: {ServerId}!")
       return None
 
     ReturnValue:int = int(server.message_channel)
@@ -418,7 +418,7 @@ class DatabaseDriver():
   def GetAllBans(self, NumLastActions:int=0) -> list[Ban]:
     stmt = select(Ban)
     
-    if (NumLastActions):
+    if (NumLastActions > 0):
       stmt = stmt.order_by(desc(Ban.created_at)).limit(NumLastActions)
     else:
       stmt = stmt.order_by(asc(Ban.created_at))
