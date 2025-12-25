@@ -131,7 +131,7 @@ msg = "Make sure that ScamGuard has a moderator role for your server to ease any
 
 [setup.conflicts]
 title = "Bot Conflicts Detected"
-msg = "**WARNING**: Wizebot/Carlbot has been detected in your server, you will need to whitelist ScamGuard in their dashboard, otherwise ScamGuard won't be able to work properly!"
+msg = "**WARNING**: Wizebot/Carlbot/Wick has been detected in your server, you will need to whitelist ScamGuard in their dashboard, otherwise ScamGuard won't be able to work properly!"
 
 [setup.important_links]
 title = "Important Links"

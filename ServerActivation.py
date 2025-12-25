@@ -45,7 +45,7 @@ class ScamGuardServerSetup():
     InformationEmbed.add_field(name="IMPORTANT:", value="", inline=False)
     InformationEmbed.add_field(name=Messages["setup"]["roles"]["title"], inline=False, value=Messages["setup"]["roles"]["msg"])
     
-    # Check to see if WizeBot/Carlbot is in the server, and warn about it.
+    # Check to see if quarantine bots are in the server, and warn about it.
     if (await self.CheckForBotConflicts(interaction.guild)):
       InformationEmbed.add_field(name=Messages["setup"]["conflicts"]["title"], inline=False, value=Messages["setup"]["conflicts"]["msg"])
     
