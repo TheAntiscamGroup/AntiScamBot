@@ -64,11 +64,17 @@ class ScamGuard(DiscordBot):
       self.ConfigBackupInterval()
       return
     
-    # If we have active async tasks in progress, then delay this task until we are free.
+    # These are safe async tasks that we can run backup during. If the task queue only has tasks of these names, then it is safe.
+    SafeAsyncTaskNames = ["CreateBanAnnouncement", "PostFirstTimeMessage", "PostScamReport"]
+    
+    # If we have active async tasks in progress, check to see if we can continue without them
+    # i.e. we are currently waiting to do something.
     if (len(self.AsyncTasks) > 0):
-      Logger.Log(LogLevel.Warn, "There are currently async tasks in progress, will try backup again in 5 minutes...")
-      self.RetryTaskInterval(self.PeriodicBackup)
-      return
+      for itm in self.AsyncTasks:
+        if not itm.get_name() in SafeAsyncTaskNames:
+          Logger.Log(LogLevel.Warn, "There are currently async tasks in progress, will try backup again in 5 minutes...")
+          self.RetryTaskInterval(self.PeriodicBackup)
+          return
     
     # If we currently have the minutes value set, then we need to make sure we get back onto the right track
     if (self.PeriodicBackup.minutes != 0.0):

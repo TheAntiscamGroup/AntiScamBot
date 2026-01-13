@@ -109,14 +109,15 @@ class DiscordBot(discord.Client):
      
   ### Event Queueing ###
   def AddAsyncTask(self, TaskToComplete):
+    TaskName:str = str(TaskToComplete)
     try:
       CurrentLoop = asyncio.get_running_loop()
     except RuntimeError:
-      Logger.Log(LogLevel.Log, f"Encountered an error while trying to add async task {str(TaskToComplete)}")
+      Logger.Log(LogLevel.Log, f"Encountered an error while trying to add async task {TaskName}")
       return
 
-    Logger.Log(LogLevel.Log, f"Added task {str(TaskToComplete)} to task queue")
-    NewTask = CurrentLoop.create_task(TaskToComplete)
+    Logger.Log(LogLevel.Log, f"Added task {TaskName} to task queue")
+    NewTask = CurrentLoop.create_task(TaskToComplete, name=TaskName)
     self.AsyncTasks.add(NewTask)
     NewTask.add_done_callback(self.AsyncTasks.discard)
   
