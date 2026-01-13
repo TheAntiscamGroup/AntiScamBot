@@ -54,4 +54,4 @@ To test the bot on your own Discord server for debugging purposes, here's how yo
 
 ---
 
-If you want to have a publicly accessible API endpoint for your bot instance, you can [clone this project](https://github.com/TheAntiscamGroup/AntiScamBotAPI).
+If you want to have a publicly accessible API endpoint for your bot instance, you can [clone this project](https://theantiscamgroup.com/AntiScamBotAPI).
