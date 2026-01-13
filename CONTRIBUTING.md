@@ -6,7 +6,7 @@
 
 ### Find a bug?
 
-* Check to see if the bug has already been submitted under [the issues page](https://github.com/theantiscamgroup/AntiScamBot/issues)
+* Check to see if the bug has already been submitted under [the issues page](https://theantiscamgroup.com/AntiScamBot/issues)
 * If it has not been submitted, please open a new one. Make sure to do the following:
     * Have a simple title
     * Clear, detailed description
@@ -37,7 +37,7 @@ If this issue is already assigned, please do not unassign the assignee without t
 
 ### Fix whitespace, formatting, or make purely cosmetic code changes?
 
-Unless the changes were previously [issue tracked](https://github.com/theantiscamgroup/AntiScamBot/issues), then these changes will be likely not be accepted into the project. [Rails has good rational](https://github.com/rails/rails/pull/13771#issuecomment-32746700) as to why these changes can bog down a project.
+Unless the changes were previously [issue tracked](https://theantiscamgroup.com/AntiScamBot/issues), then these changes will be likely not be accepted into the project. [Rails has good rational](https://github.com/rails/rails/pull/13771#issuecomment-32746700) as to why these changes can bog down a project.
 
 ### Fix typos, gramatical errors on the website?
 

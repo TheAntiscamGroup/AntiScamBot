@@ -42,13 +42,13 @@ change_settings = "To change settings, run `/scamguard config`. To uninstall the
 
 # Settings for the embeds
 [info]
-links="[Website](https://scamguard.app)\n[GitHub](https://github.com/theantiscamgroup/AntiScamBot)"
+links="[Website](https://scamguard.app)\n[GitHub](https://theantiscamgroup.com/AntiScamBot)"
 help_links="[FAQ](https://scamguard.app/faq)\n[Usage](https://scamguard.app/usage)\n[Support Server](https://scamguard.app/discord)"
 legal="[TOS](https://scamguard.app/terms)\n[Privacy Policy](https://scamguard.app/privacy)"
-about="ScamGuard is a free Discord bot that prevent scammers from entering your server. It is managed by [SocksTheWolf](https://socksthewolf.com)"
+about="ScamGuard is a free Discord bot that prevents scammers from entering your server. It is managed by [SocksTheWolf](https://socksthewolf.com)."
 
 [first_time]
-desc="Thanks for installing ScamGuard, you are well on your way to protecting your server from ~{bans} scammers.\n## Next Steps"
+desc="Thanks for installing ScamGuard, you are well on your way to protecting your server from ~{bans} scammers!\n## Next Steps"
 mod_role_title="1. Give Moderator Role"
 mod_role_desc="ScamGuard **requires a moderator role** in order to be able to ban scammers before they join.\n\nIf you would like to run the bot without giving it a moderator role, please [see the advanced steps here](https://scamguard.app/advanced_install)."
 activate_title="2. Activate ScamGuard Within {days} Days"
