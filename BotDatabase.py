@@ -220,7 +220,7 @@ class DatabaseDriver():
   ### Server Forbidden ###
   def ForbidServerActivation(self, ServerId: int, UserId: int):
     if (self.IsServerForbidden(ServerId)):
-      return
+      return False
     
     NewForbiddenServer = DeniedServers(
       discord_server_id = ServerId,
@@ -229,6 +229,7 @@ class DatabaseDriver():
     
     self.Database.add(NewForbiddenServer)
     self.Database.commit()
+    return True
     
   def RemoveForbiddenActivation(self, ServerId: int):
     stmt = select(DeniedServers).where(DeniedServers.discord_server_id==ServerId)

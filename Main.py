@@ -68,7 +68,20 @@ if __name__ == '__main__':
     else:
       await interaction.response.send_message(f"I am unable to resolve that server id!")
       Logger.Log(LogLevel.Warn, f"Unable to resolve server {server} for reprocess")
-      
+  
+  @ScamGuardBot.Commands.command(name="forbidserver", description="Forbid a server from ScamGuard", guild=CommandControlServer)
+  @app_commands.checks.has_role(ConfigData["ApproverRole"])
+  @app_commands.describe(server='Discord ID of the server to forbid')
+  async def ForbidServer(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer]):
+    if (server <= -1):
+      await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
+      return
+    
+    if (ScamGuardBot.Database.ForbidServerActivation(server, interaction.user.id)):
+      await interaction.response.send_message(f"Bot has forbidden server {server}")
+    else:
+      await interaction.response.send_message(f"Server {server} is already forbidden")
+          
   @ScamGuardBot.Commands.command(name="unforbidserver", description="Unforbid a server from ScamGuard", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["ApproverRole"])
   @app_commands.describe(server='Discord ID of the server to unforbid')
@@ -80,7 +93,7 @@ if __name__ == '__main__':
     if (ScamGuardBot.Database.RemoveForbiddenActivation(server)):
       await interaction.response.send_message(f"Bot has unforbidden server {server}")
     else:
-      await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)    
+      await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
 
   @ScamGuardBot.Commands.command(name="retryactions", description="Forces the bot to retry last actions", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
@@ -139,7 +152,7 @@ if __name__ == '__main__':
         if (IsActivated):
           ActivatedServers += 1
       
-      ActivatedStr = f"Num Activated: {ActivatedServers} "
+      ActivatedStr = f"Num Activated: {ActivatedServers} |"
     
     # Exhausted server information
     NumExhausted:int = ScamGuardBot.Database.GetNumExhaustedServers()
@@ -161,7 +174,7 @@ if __name__ == '__main__':
         RowNum += 1
 
     # Final formatting
-    ReplyStr = f"{ReplyStr}{ExhaustedStr}\n{ActivatedStr}| Num Bans: {NumBans} | Num Exhausted: {NumExhausted}"
+    ReplyStr = f"{ReplyStr}{ExhaustedStr}\n{ActivatedStr} Num Bans: {NumBans} | Num Exhausted: {NumExhausted}"
     # Split the string so that it fits properly into discord messaging
     MessageChunkLen:int = 2000
     MessageChunks = [ReplyStr[i:i+MessageChunkLen] for i in range(0, len(ReplyStr), MessageChunkLen)]
@@ -179,7 +192,7 @@ if __name__ == '__main__':
       return 
     
     Sender:User|Member = interaction.user
-    Logger.Log(LogLevel.Verbose, f"Scam ban message detected from {Sender} for {targetid}")
+    Logger.Log(LogLevel.Verbose, f"Scamban message detected from {Sender} for {targetid}")
     # Check to see if the ban already exists
     if (not ScamGuardBot.Database.DoesBanExist(targetid)):
       BanEmbed:Embed = await ScamGuardBot.CreateBanEmbed(targetid)
@@ -196,7 +209,7 @@ if __name__ == '__main__':
   async def ScamUnban(interaction:Interaction, targetid:app_commands.Transform[int, TargetIdTransformer]):
     if (targetid <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
-      return 
+      return
 
     Sender:Member|User = interaction.user
     Logger.Log(LogLevel.Verbose, f"Scam unban message detected from {Sender} for {targetid}")
@@ -256,7 +269,7 @@ if __name__ == '__main__':
       return
     
     if (not ScamGuardBot.Database.IsInServer(server)):
-      await interaction.response.send_message(f"ScamGuard is not in server {server}!", ephemeral=True, delete_after=5.0)    
+      await interaction.response.send_message(f"ScamGuard is not in server {server}!", ephemeral=True, delete_after=5.0)
       return
     
     ScamGuardBot.Database.ToggleServerBan(server, state)
