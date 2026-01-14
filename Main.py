@@ -78,9 +78,12 @@ if __name__ == '__main__':
       return
     
     if (ScamGuardBot.Database.ForbidServerActivation(server, interaction.user.id)):
+      # Force the bot to leave that server immediately
+      ScamGuardBot.LeaveServer(server)
       await interaction.response.send_message(f"Bot has forbidden server {server}")
+      Logger.Log(LogLevel.Warn, f"{server} was marked as a forbidden server by {interaction.user.name}")
     else:
-      await interaction.response.send_message(f"Server {server} is already forbidden")
+      await interaction.response.send_message(f"Server {server} is already forbidden", delete_after=5.0)
           
   @ScamGuardBot.Commands.command(name="unforbidserver", description="Unforbid a server from ScamGuard", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["ApproverRole"])
@@ -91,6 +94,7 @@ if __name__ == '__main__':
       return
     
     if (ScamGuardBot.Database.RemoveForbiddenActivation(server)):
+      Logger.Log(LogLevel.Warn, f"{server} was marked as an unforbidden server by {interaction.user.name}")
       await interaction.response.send_message(f"Bot has unforbidden server {server}")
     else:
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
