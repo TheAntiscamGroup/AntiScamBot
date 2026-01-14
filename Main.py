@@ -68,6 +68,19 @@ if __name__ == '__main__':
     else:
       await interaction.response.send_message(f"I am unable to resolve that server id!")
       Logger.Log(LogLevel.Warn, f"Unable to resolve server {server} for reprocess")
+      
+  @ScamGuardBot.Commands.command(name="unforbidserver", description="Unforbid a server from ScamGuard", guild=CommandControlServer)
+  @app_commands.checks.has_role(ConfigData["ApproverRole"])
+  @app_commands.describe(server='Discord ID of the server to unforbid')
+  async def UnforbidServer(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer]):
+    if (server <= -1):
+      await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
+      return
+    
+    if (ScamGuardBot.Database.RemoveForbiddenActivation(server)):
+      await interaction.response.send_message(f"Bot has unforbidden server {server}")
+    else:
+      await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)    
 
   @ScamGuardBot.Commands.command(name="retryactions", description="Forces the bot to retry last actions", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])

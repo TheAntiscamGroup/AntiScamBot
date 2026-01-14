@@ -328,17 +328,31 @@ class DiscordBot(discord.Client):
     if (server.owner is not None):
       OwnerName = server.owner.display_name
       
+    ServerStr:str = self.GetServerInfoStr(server)
     # Prevent ourselves from being added to a server we are already in.
     if (self.Database.IsInServer(server.id)):
-      Logger.Log(LogLevel.Notice, f"Bot #{self.BotID} was attempted to be added to server {self.GetServerInfoStr(server)} but already in there")
+      Logger.Log(LogLevel.Notice, f"Bot #{self.BotID} was attempted to be added to server {ServerStr} but already in there")
       # TODO: Print a message to the user?
+      await server.leave()
+      return
+    
+    # If a server is marked as forbidden, leave the server
+    if (self.Database.IsServerForbidden(server.id)):
+      Logger.Log(LogLevel.Notice, f"Forbidden server {ServerStr} has {len(server.roles)} roles:")
+      # Get the member role list, to dump ids
+      for RoleCheck in server.roles:
+        RoleStr = f"{RoleCheck.name}({len(RoleCheck.members)}): "
+        for member in RoleCheck.members:
+          RoleStr = RoleStr + f"{member.id}, "
+        Logger.Log(LogLevel.Notice, f"* {RoleStr}")
+
       await server.leave()
       return
 
     self.Database.SetBotActivationForOwner([server.id], False, self.BotID, OwnerId=server.owner_id or 0)
     if (ConfigData["PostWelcomeMessages"]):
       self.AddAsyncTask(self.PostFirstTimeMessage(server.id))
-    Logger.Log(LogLevel.Notice, f"Bot (#{self.BotID}) has joined server {self.GetServerInfoStr(server)} of owner {OwnerName}[{server.owner_id}]")
+    Logger.Log(LogLevel.Notice, f"Bot (#{self.BotID}) has joined server {ServerStr} of owner {OwnerName}[{server.owner_id}]")
     
   async def on_guild_remove(self, server:discord.Guild):
     OwnerName:str = "Admin"
@@ -615,7 +629,10 @@ Failed Copied Evidence Links:
       await MessageChannel.send(Messages["webhook"]["remove"]["fatal"])
 
   ### Utils ###
-  def GetServerInfoStr(self, Server:discord.Guild) -> str:
+  def GetServerInfoStr(self, Server:discord.Guild|None) -> str:
+    if Server is None:
+      return ""
+    
     return f"`{Server.name}`[{Server.id}]"
   
   def GetControlServerGuild(self) -> discord.Guild|None:

@@ -48,3 +48,12 @@ class ExhaustedServer(Base):
   current_pos = mapped_column(Integer, nullable=False, server_default="0")
   last_run = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
   is_processing = mapped_column(Integer, nullable=False, server_default="0")
+
+# These are servers that the bot has been refused to be activated in
+class DeniedServers(Base):
+  __tablename__ = "denied_servers"
+  
+  discord_server_id = mapped_column(String(32), unique=True, primary_key=True, nullable=False)
+  adjudicar_handle = mapped_column(String(32), nullable=False)
+  created_at = mapped_column(DateTime(), server_default=func.now())
+  updated_at = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())

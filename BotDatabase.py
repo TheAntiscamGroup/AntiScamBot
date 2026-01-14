@@ -3,7 +3,7 @@ from BotEnums import BanAction, ModerationAction
 from Logger import Logger, LogLevel
 from Config import Config
 import shutil, time, os
-from BotDatabaseSchema import Ban, ExhaustedServer, Server
+from BotDatabaseSchema import Ban, DeniedServers, ExhaustedServer, Server
 from sqlalchemy import create_engine, Engine, select, URL, desc, asc, func
 from sqlalchemy.orm import Session
 from BotServerSettings import BotSettingsPayload
@@ -136,7 +136,8 @@ class DatabaseDriver():
     serverToChange.kick_sus_users = 1 if ServerSettings.KickSusUsers else 0
     self.Database.add(serverToChange)
     self.Database.commit()
-       
+    
+  
   def RemoveServerEntry(self, ServerId:int, BotId:int):
     stmt = select(Server).where((Server.discord_server_id==ServerId) & (Server.bot_instance_id==BotId))
     server = self.Database.scalars(stmt).first()
@@ -215,6 +216,36 @@ class DatabaseDriver():
       Logger.Log(LogLevel.Notice, f"Server activation changed in {NumActivationChanges} servers to {str(IsActive)} by {ActivatorId}")
 
     self.Database.commit()
+    
+  ### Server Forbidden ###
+  def ForbidServerActivation(self, ServerId: int, UserId: int):
+    if (self.IsServerForbidden(ServerId)):
+      return
+    
+    NewForbiddenServer = DeniedServers(
+      discord_server_id = ServerId,
+      adjudicar_handle = UserId,
+    )
+    
+    self.Database.add(NewForbiddenServer)
+    self.Database.commit()
+    
+  def RemoveForbiddenActivation(self, ServerId: int):
+    stmt = select(DeniedServers).where(DeniedServers.discord_server_id==ServerId)
+    serverban = self.Database.scalars(stmt).first()
+    if (serverban is None):
+      return False
+
+    self.Database.delete(serverban)
+    self.Database.commit()
+    return True
+    
+  def IsServerForbidden(self, ServerId: int):
+    stmt = select(DeniedServers).where(DeniedServers.discord_server_id==ServerId)
+    server = self.Database.scalars(stmt).first()
+    if (server is None):
+      return False
+    return True
     
   ### Reconcile Servers ###
   def ReconcileServers(self, Servers, BotId:int):       

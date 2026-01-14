@@ -1,5 +1,6 @@
 # A discord view for handling server activations
 from discord import ui, ButtonStyle, Interaction, Colour, Embed, Guild, TextChannel
+from BotBase import DiscordBot
 from Config import Config
 from Logger import Logger, LogLevel
 from BotServerSettings import ServerSettingsView, BotSettingsPayload
@@ -114,17 +115,18 @@ class ServerActivationApproval(SelfDeletingView):
   @ui.button(label="Approve", style=ButtonStyle.success, row=4)
   async def setup(self, interaction: Interaction, button: ui.Button):
     self.HasInteracted = True
-    ServerIDStr:str = interaction.client.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
+    Bot = cast(DiscordBot, interaction.client)
+    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
     await interaction.response.send_message(f"Enqueuing activation for server {ServerIDStr}")
-    await self.Parent.PushActivation(self.Payload) # pyright: ignore[reportOptionalMemberAccess]
+    await cast(ScamGuardServerSetup, self.Parent).PushActivation(self.Payload)
     await self.StopInteractions()
     
-  @ui.button(label="Deny", style=ButtonStyle.danger, row=4)
+  @ui.button(label="Deny with Message", style=ButtonStyle.grey, row=4)
   async def deny_activation(self, interaction:Interaction, button:ui.Button):
     self.HasInteracted = True
     ServerID:int = self.Payload.GetServerID()
-    Bot = interaction.client
-    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
+    Bot = cast(DiscordBot, interaction.client)
+    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
     
     await interaction.response.send_message(f"Activation denied for server {ServerIDStr}.")
     
@@ -133,11 +135,29 @@ class ServerActivationApproval(SelfDeletingView):
       Logger.Log(LogLevel.Error, f"Could not resolve the channel {self.Payload.GetMessageID()} for server {ServerIDStr} to post activation deny message in")
       return
     
-    # Do not send a message if the server admins sent the activation command a few times already.
-    if (not Bot.Database.IsActivatedInServer(ServerID)): # pyright: ignore[reportAttributeAccessIssue]
+    # Do not send a message if the server admins sent the activation command a few times alread and was approved.
+    if (not Bot.Database.IsActivatedInServer(ServerID)):
       await DiscordChannel.send(Messages["setup"]["activation_error"])
+      
+    await self.StopInteractions()
+      
+  @ui.button(label="Forbid Forever", style=ButtonStyle.danger, row=4)
+  async def forbid_activation(self, interaction:Interaction, button:ui.Button):
+    self.HasInteracted = True
+    ServerID: int = self.Payload.GetServerID()
+    Bot = cast(DiscordBot, interaction.client)
+    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
+    
+    await interaction.response.send_message(f"Activation now forbidden for server {ServerIDStr}.")
+    # add the server to the forbid list
+    Bot.Database.ForbidServerActivation(ServerID, interaction.user.id)
+    # force leave the server
+    Bot.LeaveServer(ServerID)
+    
+    await self.StopInteractions()
       
   async def on_cancel(self, interaction:Interaction):
     self.HasInteracted = True
-    ServerIDStr:str = interaction.client.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
+    Bot = cast(DiscordBot, interaction.client)
+    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
     await interaction.response.send_message(f"Activation skipped for server {ServerIDStr}.")
