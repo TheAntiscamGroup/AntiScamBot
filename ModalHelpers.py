@@ -81,6 +81,14 @@ class ModChannelSelector(ui.ChannelSelect):
     super().__init__(row=RowPos, min_values=0, max_values=1, channel_types=[ChannelType.text], placeholder=Messages["selector"]["mod"]["placeholder"])
     
   async def IsValid(self, interaction:Interaction, Silent:bool=False) -> bool:
+    if (interaction is None or interaction.is_expired()):
+      return False
+    
+    # Check to see if the response has already been used.
+    # Not really sure how we can re-entry into this function.
+    if (interaction.response.is_done()):
+      return False
+    
     if (not self.values and self.min_values > 0):
       await interaction.response.send_message(Messages["selector"]["mod"]["needs_value"], ephemeral=True, delete_after=60.0)    
       return False
