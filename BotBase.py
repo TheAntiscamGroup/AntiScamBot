@@ -651,6 +651,14 @@ Failed Copied Evidence Links:
       await self.InstallWebhook(ServerID)
     else:
       await self.DeleteWebhook(ServerID)
+      
+  async def DeleteFutureMessage(self, Message:discord.WebhookMessage, time:float):
+    try:
+      await Message.delete(delay=time)
+    except:
+      # If this fails, we really don't care. Usually this happens by the message failing out
+      # or already being deleted, which satisfies this function's execution anyways
+      pass
   
   ### Embeds ###
   def CreateBaseEmbed(self, Title:str, ApplyThumbnail:bool=True) -> discord.Embed:

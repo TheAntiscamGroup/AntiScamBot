@@ -63,7 +63,7 @@ async def CommandErrorHandler(interaction: Interaction, error: app_commands.AppC
     else:
       ErrorMsg = Messages["cmds"]["check"]["change_settings"]
   else:
-    Logger.Log(LogLevel.Error, f"Encountered error running command /{InteractionName}: {str(error)} {traceback.format_exc()}")
+    Logger.Log(LogLevel.Error, f"Encountered error running command /{InteractionName}: {str(error)} ```{traceback.format_exc(limit=3)}```")
     ErrorMsg = Messages["cmds_error"]["general"]
   
   await interaction.response.send_message(ErrorMsg, ephemeral=True, delete_after=10.0)

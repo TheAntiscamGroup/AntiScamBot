@@ -7,6 +7,15 @@ import traceback
 
 Messages:TextLibrary = TextLibrary()
 
+async def SendInteractionMessage(interaction: Interaction, message:str, delete_after:float=60.0, is_silent:bool=False):
+  if (interaction.response.is_done()):
+    ReturnMessage:WebhookMessage = await interaction.followup.send(message, ephemeral=True, silent=is_silent, wait=True)
+    # Delete the message after a certain amount of time
+    if (delete_after > 0.0):
+      interaction.client.AddAsyncTask(interaction.client.DeleteFutureMessage(ReturnMessage, delete_after)) # pyright: ignore[reportAttributeAccessIssue]
+  else:
+    await interaction.response.send_message(message, ephemeral=True, delete_after=delete_after, silent=is_silent)
+
 class YesNoSelector(ui.Select):
   CurrentSelection:str = ""
   CachedValue:str = ""
@@ -43,7 +52,7 @@ class YesNoSelector(ui.Select):
       return
     
     self.CurrentSelection = self.values[0]
-    await interaction.response.send_message(f"{Messages['selector']['new']} {self.GetValue()}", ephemeral=True, delete_after=0.001, silent=True)
+    await SendInteractionMessage(interaction, f"{Messages['selector']['new']} {self.GetValue()}", delete_after=0.001, is_silent=True)
     
   def SetRequired(self, NewState:bool):
     if (NewState):
@@ -79,40 +88,35 @@ class YesNoSelector(ui.Select):
 class ModChannelSelector(ui.ChannelSelect):
   def __init__(self, RowPos:int|None=None):
     super().__init__(row=RowPos, min_values=0, max_values=1, channel_types=[ChannelType.text], placeholder=Messages["selector"]["mod"]["placeholder"])
-    
+   
   async def IsValid(self, interaction:Interaction, Silent:bool=False) -> bool:
     if (interaction is None or interaction.is_expired()):
       return False
     
-    # Check to see if the response has already been used.
-    # Not really sure how we can re-entry into this function.
-    if (interaction.response.is_done()):
-      return False
-    
     if (not self.values and self.min_values > 0):
-      await interaction.response.send_message(Messages["selector"]["mod"]["needs_value"], ephemeral=True, delete_after=60.0)    
+      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["needs_value"])
       return False
     
     ChannelToHookInto:TextChannel|None = cast(TextChannel|None, self.values[0].resolve())
     if (ChannelToHookInto is None):
-      await interaction.response.send_message(Messages["selector"]["mod"]["needs_perms"], ephemeral=True, delete_after=60.0)
+      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["needs_perms"])
       return False
     
     # Check channel permissions to see if we can post in there.
     BotMember:Member|None = interaction.guild.get_member(interaction.client.user.id) # pyright: ignore[reportOptionalMemberAccess]
     if (BotMember is None):
-      await interaction.response.send_message(Messages["selector"]["mod"]["discord_slow"])
+      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["discord_slow"])
       return False
     
     PermissionsObj:Permissions = ChannelToHookInto.permissions_for(BotMember)
     MentionStr:str = ChannelToHookInto.mention
     if (not PermissionsObj.send_messages):
       BotRoleName:str = cast(Role, cast(Guild, interaction.guild).self_role).name
-      await interaction.response.send_message(Messages["selector"]["mod"]["failure"].format(mention=MentionStr, role=BotRoleName), ephemeral=True, delete_after=60.0)
+      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["failure"].format(mention=MentionStr, role=BotRoleName))
       return False
     
     if (not Silent):
-      await interaction.response.send_message(Messages["selector"]["mod"]["channel_set"].format(mention=MentionStr), silent=True, ephemeral=True, delete_after=1.0)
+      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["channel_set"].format(mention=MentionStr), delete_after=1.0, is_silent=True)
     
     return True
     
@@ -138,7 +142,7 @@ class SelfDeletingView(ui.View):
     await self.StopInteractions()
     
   async def on_error(self, interaction:Interaction, error:Exception, object:ui.Item):
-    Logger.Log(LogLevel.Error, f"View interaction encountered an error {str(error)} {traceback.format_exc()}")
+    Logger.Log(LogLevel.Error, f"View interaction encountered an error {str(error)} ```{traceback.format_exc(limit=3)}```")
     
   async def on_cancel(self, interaction:Interaction):
     pass
