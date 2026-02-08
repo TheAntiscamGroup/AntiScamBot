@@ -598,13 +598,13 @@ Failed Copied Evidence Links:
     if (ChannelID is None):
       Logger.Log(LogLevel.Warn, f"Could not uninstall webhook for server {ServerId}, the ChannelID was None")
       return
-    MessageChannel:discord.TextChannel|None = cast(discord.TextChannel|None, self.get_channel(ChannelID))
+    WebhookChannel:discord.TextChannel|None = cast(discord.TextChannel|None, self.get_channel(ChannelID))
     FoundWebhook:discord.Webhook|None = None
     
     # Check to see if a webhook is already installed.
-    if (MessageChannel is not None):
+    if (WebhookChannel is not None):
       try:
-        CurrentWebhooks = await MessageChannel.webhooks()
+        CurrentWebhooks = await WebhookChannel.webhooks()
         for Webhook in CurrentWebhooks:
           if (Webhook.source_channel is None):
             continue
@@ -613,7 +613,8 @@ Failed Copied Evidence Links:
             FoundWebhook = Webhook
             break
       except discord.Forbidden:
-        Logger.Log(LogLevel.Warn, f"Unable to handle enumerating webhooks for {MessageChannel.id} in {ServerId} to delete the webhook")
+        # This will throw if they never wanted webhooks and the channel doesn't have the permissions for it
+        return
     else:
       return
     
@@ -624,9 +625,9 @@ Failed Copied Evidence Links:
     try:
       await FoundWebhook.delete(reason="ScamGuard Setting Change")
     except discord.Forbidden:
-      await MessageChannel.send(Messages["webhook"]["remove"]["perm"])
+      await WebhookChannel.send(Messages["webhook"]["remove"]["perm"])
     except discord.HTTPException:
-      await MessageChannel.send(Messages["webhook"]["remove"]["fatal"])
+      await WebhookChannel.send(Messages["webhook"]["remove"]["fatal"])
 
   ### Utils ###
   def GetServerInfoStr(self, Server:discord.Guild|None) -> str:
