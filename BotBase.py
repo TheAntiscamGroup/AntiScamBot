@@ -750,7 +750,10 @@ Failed Copied Evidence Links:
     ServerInfoStr:str = self.GetServerInfoStr(Server)
     BanReturn:BanResult = BanResult.Processed
     Logger.Log(LogLevel.Log, f"Attempting to import ban data to {ServerInfoStr}")
+    # Number of bans processed
     NumBans:int = 0
+    # Number of actual bans actioned on (used for the daily server rate limit)
+    BanActions:int = 0
     NumFailures:int = 0
     RawBanQuery = self.Database.GetAllBans(LastActions)
     CurrentNumBans:int = len(RawBanQuery)
@@ -779,7 +782,7 @@ Failed Copied Evidence Links:
         break
       
       # Check if we have a max and stop processing from here
-      if (DoesHaltOnMaxBans and NumBans >= ConfigData["MaxBulkImports"]):
+      if (DoesHaltOnMaxBans and BanActions >= ConfigData["MaxBulkImports"]):
         BanReturn = BanResult.BansExceeded
         break
 
@@ -787,10 +790,11 @@ Failed Copied Evidence Links:
       UserToBan:discord.User = cast(discord.User, discord.Object(UserId))
       BanResponse = await self.PerformActionOnServer(Server, UserToBan, 
                                f"User banned by {Ban.assigner_discord_user_name}", ModerationAction.Ban)
+
+      BanResponseFlag:BanResult = BanResponse[1]
       # See if the ban did go through.
       if (BanResponse[0] == False):
         NumFailures += 1
-        BanResponseFlag:BanResult = BanResponse[1]
         if (BanResponseFlag == BanResult.BansExceeded):
           Logger.Log(LogLevel.Error, f"Unable to process ban on user {UserId} for server {ServerInfoStr} due to exceed")
           BanReturn = BanResult.BansExceeded
@@ -807,6 +811,9 @@ Failed Copied Evidence Links:
             break
       else:
         NumBans += 1
+        # If we didn't expense a ban, then there's no need to expense one of our daily actions
+        if (BanResponseFlag != BanResult.NoActionNeeded):
+          BanActions += 1
     
     # If this is being handled by a server reprocessing, then make sure to update the db properly
     if (HandlingCooldown):
@@ -916,6 +923,18 @@ Failed Copied Evidence Links:
 
     Logger.Log(LogLevel.Notice, f"Action execution on {TargetId} performed in {NumServersPerformed}/{NumServers} servers")
     
+  # Checks if an account is already banned/unbanned
+  async def CheckRawBanStatus(self, Server:discord.Guild, User:discord.Member|discord.User) -> BanResult:
+    try:
+      BanStatus = await Server.fetch_ban(User)
+      return BanResult.Processed
+    except discord.NotFound:
+      return BanResult.NotBanned
+    except discord.HTTPException:
+      return BanResult.ServiceError
+    except discord.Forbidden:
+      return BanResult.LostPermissions
+
   # Handles moderation actions an user in each individual server
   async def PerformActionOnServer(self, Server:discord.Guild, User:discord.Member|discord.User, Reason:str, Action:ModerationAction, ShouldWait:bool=False) -> tuple[bool, BanResult]:        
     IsDevelopmentMode:bool = ConfigData.IsDevelopment()
@@ -932,15 +951,29 @@ Failed Copied Evidence Links:
         Logger.Log(LogLevel.Warn, f"{Action} of {BanId} dropped for {ServerInfo} as it is the owner!")
         return (False, BanResult.ServerOwner)
       
-      # if we are in development mode, we don't do any actions to any other servers.
-      if (IsDevelopmentMode == False):
+      # Check if we should be banning or unbanning an user
+      if (Action == ModerationAction.Ban or Action == ModerationAction.Unban):
+        # Check what the raw status of the user's current ban is, this is to potentially optimize 
+        UserStatus:BanResult = await self.CheckRawBanStatus(Server, User)
+        # banning actions
         if (Action == ModerationAction.Ban):
-          await Server.ban(User, reason=Reason)
+          # if the user is not already banned and we're not in development, ban them
+          if (IsDevelopmentMode == False and UserStatus is not BanResult.Processed):
+            await Server.ban(User, reason=Reason)
+          else:
+            # otherwise, they're already handled, keep going
+            return (True, BanResult.NoActionNeeded)
+        # unban actions
         elif (Action == ModerationAction.Unban):
-          await Server.unban(User, reason=Reason)
-        elif (Action == ModerationAction.Kick):
-          await Server.kick(User, reason=Reason)
-      else:
+          # if the user is anything but not banned, 
+          if (IsDevelopmentMode == False and UserStatus not in [BanResult.NotBanned, BanResult.LostPermissions]):
+            await Server.unban(User, reason=Reason)
+          else:
+            return (True, BanResult.NoActionNeeded)
+      elif (IsDevelopmentMode == False and Action == ModerationAction.Kick):
+        await Server.kick(User, reason=Reason)
+      
+      if (IsDevelopmentMode == False):
         Logger.Log(LogLevel.Debug, "Action was dropped as we are currently in development mode")
       return (True, BanResult.Processed)
     except discord.NotFound:
@@ -952,6 +985,7 @@ Failed Copied Evidence Links:
         return (False, BanResult.InvalidUser)
     except discord.Forbidden as forbiddenEx:
       if (Action == ModerationAction.Kick):
+        # We don't have the ability to kick (some instances)
         return (False, BanResult.Processed)
       else:
         Logger.Log(LogLevel.Error, f"We do not have ban/unban permissions in this server {ServerInfo} owned by {ServerOwnerId}! Err: {str(forbiddenEx)}")
@@ -961,6 +995,7 @@ Failed Copied Evidence Links:
         Logger.Log(LogLevel.Warn, f"Hit the bans exceeded error while trying to perform actions on server {ServerInfo}")
         return (False, BanResult.BansExceeded)
       if (ex.status == 503):
+        # Retries are happened upstream, looking for the error BanResult.ServiceError
         Logger.Log(LogLevel.Warn, f"We encountered an 503 error while trying to perform actions on {BanId} for server {ServerInfo}, will retry")
         return (False, BanResult.ServiceError)
       

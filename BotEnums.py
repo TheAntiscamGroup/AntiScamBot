@@ -26,6 +26,7 @@ class BanAction(CompareEnum):
 # Enum that expresses bans on a server level based off discord returns
 class BanResult(CompareEnum):
   Processed=auto()
+  NoActionNeeded=auto()
   NotBanned=auto()
   InvalidUser=auto()
   LostPermissions=auto()
