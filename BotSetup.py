@@ -13,7 +13,7 @@ class DatabaseMigrator:
   DATABASE_VERSION=8
   VersionMap={}
   DatabaseCon:Engine=None # pyright: ignore[reportAssignmentType]
-  
+
   def __init__(self):
     database_url = URL.create(
       'sqlite',
@@ -31,7 +31,7 @@ class DatabaseMigrator:
       head, _, _ = VersionKeyStr.partition('to')
       VersionNumber:int = int(head)
       self.VersionMap[VersionNumber] = getattr(self, UpgradeFunc)
-      
+
   def PushNewMigrationVersion(self, NewVersion:int):
     session = Session(self.DatabaseCon)
     # Versions greater than 3 had the Migration table added to them
@@ -42,7 +42,7 @@ class DatabaseMigrator:
       session.add(dbVersion)
     session.execute(text(f"PRAGMA user_version = {NewVersion}"))
     session.commit()
-    
+
   def PerformUpgradesFromVersion(self, StartingVersion:int) -> bool:
     for i in range(StartingVersion, self.DATABASE_VERSION):
       # Perform upgrade to version
@@ -53,9 +53,9 @@ class DatabaseMigrator:
         return False
       else:
         self.PushNewMigrationVersion(NextVersion)
-        Logger.Log(LogLevel.Debug, f"Successfully upgraded to version {NextVersion}")  
+        Logger.Log(LogLevel.Debug, f"Successfully upgraded to version {NextVersion}")
     return True
-  
+
   def upgrade_version1to2(self) -> bool:
     session = Session(self.DatabaseCon)
     session.execute(text("ALTER TABLE servers ADD ActivatorId INTEGER default 0"))
@@ -95,7 +95,7 @@ class DatabaseMigrator:
         owner_discord_user_id = oldServer[1],
         activation_state = oldServer[2],
         activator_discord_user_id = oldServer[3],
-      ) 
+      )
       newServerList.append(newServer)
     serverlist.close()
 
@@ -118,10 +118,10 @@ class DatabaseMigrator:
 
     # remove ban microseconds to match internal (sqlite) datetime(now) format
     query = text('UPDATE bans set created_at = datetime(created_at)')
-    session.execute(query) 
+    session.execute(query)
     session.commit()
     return True
-  
+
   def upgrade_version3to4(self) -> bool:
     session = Session(self.DatabaseCon)
     session.execute(text("ALTER TABLE servers ADD message_channel INTEGER default 0"))
@@ -129,7 +129,7 @@ class DatabaseMigrator:
     session.execute(text("ALTER TABLE servers ADD kick_sus_users INTEGER default 0"))
     session.commit()
     return True
-  
+
   def upgrade_version4to5(self) -> bool:
     session = Session(self.DatabaseCon)
     session.execute(text("ALTER TABLE bans ADD evidence_thread INTEGER default NULL"))
@@ -137,14 +137,14 @@ class DatabaseMigrator:
     session.execute(text("ALTER TABLE servers ADD should_ban_in INTEGER default 1"))
     session.commit()
     return True
-  
+
   def upgrade_version5to6(self) -> bool:
     # Added exhausted servers, but it had issues
     session = Session(self.DatabaseCon)
     Base.metadata.create_all(self.DatabaseCon)
     session.commit()
     return True
-  
+
   def upgrade_version6to7(self) -> bool:
     session = Session(self.DatabaseCon)
     # destroy the old table
@@ -154,7 +154,7 @@ class DatabaseMigrator:
     Base.metadata.create_all(self.DatabaseCon)
     session.commit()
     return True
-  
+
   def upgrade_version7to8(self) -> bool:
     # This added forbidden servers
     session = Session(self.DatabaseCon)
@@ -164,7 +164,7 @@ class DatabaseMigrator:
 
 def SetupDatabases():
   Logger.Log(LogLevel.Notice, "Loading database for scam bot setup")
-  
+
   database_url = URL.create(
     'sqlite',
     username='',

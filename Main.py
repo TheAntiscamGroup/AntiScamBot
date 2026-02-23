@@ -12,11 +12,11 @@ from TextWrapper import TextLibrary
 ConfigData:Config=Config()
 Messages:TextLibrary = TextLibrary()
 
-if __name__ == '__main__':  
+if __name__ == '__main__':
   ### MAIN INSTANCE SETUP ###
   CommandControlServer=Object(id=ConfigData["ControlServer"])
   ScamGuardBot = ScamGuard(ConfigData["ControlBotID"])
-  
+
   # These are all the main ScamGuard control commands for usage in the control server, these
   # do not get used in any other server, thus their very strange location and setup wrapping
   @ScamGuardBot.Commands.command(name="info", description="ScamGuard Info", guild=CommandControlServer)
@@ -32,7 +32,7 @@ if __name__ == '__main__':
       await interaction.response.send_message("Backed up current database")
     else:
       await interaction.response.send_message("Failed to backup database!")
-    
+
   @ScamGuardBot.Commands.command(name="forceleave", description="Makes the bot force leave a server", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
   @app_commands.describe(server='Discord ID of the server to leave')
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     if (server <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     if (ScamGuardBot.LeaveServer(server)):
       await interaction.response.send_message(f"Bot is attempting to leave server {server}")
     else:
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     if (server <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     if (ScamGuardBot.Database.IsInServer(server)):
       BotInstance:int|None = ScamGuardBot.Database.GetBotIdForServer(server)
       if (BotInstance is None):
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     else:
       await interaction.response.send_message(f"I am unable to resolve that server id!")
       Logger.Log(LogLevel.Warn, f"Unable to resolve server {server} for reprocess")
-  
+
   @ScamGuardBot.Commands.command(name="forbidserver", description="Forbid a server from ScamGuard", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["ApproverRole"])
   @app_commands.describe(server='Discord ID of the server to forbid')
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     if (server <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     if (ScamGuardBot.Database.ForbidServerActivation(server, interaction.user.id)):
       # Force the bot to leave that server immediately
       ScamGuardBot.LeaveServer(server)
@@ -84,7 +84,7 @@ if __name__ == '__main__':
       Logger.Log(LogLevel.Warn, f"{server} was marked as a forbidden server by {interaction.user.name}")
     else:
       await interaction.response.send_message(f"Server {server} is already forbidden", delete_after=5.0)
-          
+
   @ScamGuardBot.Commands.command(name="unforbidserver", description="Unforbid a server from ScamGuard", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["ApproverRole"])
   @app_commands.describe(server='Discord ID of the server to unforbid')
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     if (server <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     if (ScamGuardBot.Database.RemoveForbiddenActivation(server)):
       Logger.Log(LogLevel.Warn, f"{server} was marked as an unforbidden server by {interaction.user.name}")
       await interaction.response.send_message(f"Bot has unforbidden server {server}")
@@ -106,16 +106,16 @@ if __name__ == '__main__':
     if (server <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     if (ScamGuardBot.Database.IsProcessingServerCooldown(server)):
       await interaction.response.send_message(Messages["cmds_error"]["server_already_processing"])
       return
-      
+
     ScamGuardBot.AddAsyncTask(ScamGuardBot.ReprocessBansForServer(server, LastActions=numactions))
     ReturnStr:str = f"Reprocessing the last {numactions} actions in {server}..."
     Logger.Log(LogLevel.Notice, ReturnStr)
     await interaction.response.send_message(ReturnStr)
-    
+
   @ScamGuardBot.Commands.command(name="retryinstance", description="Forces the bot to retry last actions for instance", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
   @app_commands.describe(instance='Bot Instance ID to reimport', numactions='The number of actions to perform')
@@ -124,14 +124,14 @@ if __name__ == '__main__':
     ReturnStr:str = f"Reprocessing the last {numactions} actions for instance {instance}"
     Logger.Log(LogLevel.Notice, ReturnStr)
     await interaction.response.send_message(ReturnStr)
-    
+
   @ScamGuardBot.Commands.command(name="ping", description="Ping an instance", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
   @app_commands.describe(instance='Bot Instance ID to ping')
   async def PingInstance(interaction:Interaction, instance:app_commands.Range[int, 0]):
     ScamGuardBot.ClientHandler.SendPing(instance)
     await interaction.response.send_message(f"Pinged instance #{instance}", ephemeral=True, delete_after=2.0)
-    
+
   @ScamGuardBot.Commands.command(name="print", description="Print stats and information about all bots in the server", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
   async def PrintServers(interaction:Interaction, exhausted_only:bool):
@@ -140,13 +140,13 @@ if __name__ == '__main__':
     RowNum:int = 1
     NumBans:int = ScamGuardBot.Database.GetNumBans()
     ActivatedServers:int = 0
-    
+
     await interaction.response.defer(thinking=True)
     ResponseHook:Webhook = interaction.followup
-    
+
     if (not exhausted_only):
       ReplyStr = "I am in the following servers:\n"
-      
+
       # Format all servers that we know
       QueryResults = ScamGuardBot.Database.GetAllServers()
       for BotServers in QueryResults:
@@ -155,9 +155,9 @@ if __name__ == '__main__':
         RowNum += 1
         if (IsActivated):
           ActivatedServers += 1
-      
+
       ActivatedStr = f"Num Activated: {ActivatedServers} |"
-    
+
     # Exhausted server information
     NumExhausted:int = ScamGuardBot.Database.GetNumExhaustedServers()
     ExhaustedServers = ScamGuardBot.Database.GetAllExhaustedServers()
@@ -184,7 +184,7 @@ if __name__ == '__main__':
     MessageChunks = [ReplyStr[i:i+MessageChunkLen] for i in range(0, len(ReplyStr), MessageChunkLen)]
     for MessageChunk in MessageChunks:
       await interaction.channel.send(MessageChunk) # type: ignore
-      
+
     await ResponseHook.send("Done printing", ephemeral=True)
 
   @ScamGuardBot.Commands.command(name="scamban", description="Bans a scammer", guild=CommandControlServer)
@@ -193,8 +193,8 @@ if __name__ == '__main__':
   async def ScamBan(interaction:Interaction, targetid:app_commands.Transform[int, TargetIdTransformer]):
     if (targetid <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
-      return 
-    
+      return
+
     Sender:User|Member = interaction.user
     Logger.Log(LogLevel.Verbose, f"Scamban message detected from {Sender} for {targetid}")
     # Check to see if the ban already exists
@@ -228,7 +228,7 @@ if __name__ == '__main__':
         Logger.Log(LogLevel.Warn, f"{Sender} attempted unban on {targetid} with error {str(Result)}")
     else:
       ResponseMsg = f"The unban for {targetid} is in progress..."
-      
+
     await interaction.response.send_message(ResponseMsg)
 
   # Control server version of scamcheck
@@ -239,10 +239,10 @@ if __name__ == '__main__':
     if (target <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     ResponseEmbed:Embed = await ScamGuardBot.CreateBanEmbed(target)
     await interaction.response.send_message(embed = ResponseEmbed)
-    
+
   # Control Server command to set evidence threads
   @ScamGuardBot.Commands.command(name="setthread", description="In the control server, set the evidence thread for the given user id", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["ApproverRole"])
@@ -250,20 +250,20 @@ if __name__ == '__main__':
     if (target <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     InteractionLocation:int|None = interaction.channel_id
     if (InteractionLocation is None):
       await interaction.response.send_message("This action can only be performed in channels or threads.", ephemeral=True)
       return
-    
+
     if (not ScamGuardBot.Database.DoesBanExist(target)):
       await interaction.response.send_message("Cannot set an evidence thread on a non-ban at this time!", ephemeral=True)
       return
-    
+
     ScamGuardBot.Database.SetEvidenceThread(target, InteractionLocation)
     await interaction.response.send_message(f"Updated the thread for {target} to <#{interaction.channel_id}>")
     Logger.Log(LogLevel.Log, f"Thread set for {target} to {interaction.channel_id}")
-  
+
   # Togglers for curbing any potential abuse
   @ScamGuardBot.Commands.command(name="toggleserverban", description="In the control server, sets if the given server should have bans processed on them", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
@@ -271,36 +271,36 @@ if __name__ == '__main__':
     if (server <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     if (not ScamGuardBot.Database.IsInServer(server)):
       await interaction.response.send_message(f"ScamGuard is not in server {server}!", ephemeral=True, delete_after=5.0)
       return
-    
+
     ScamGuardBot.Database.ToggleServerBan(server, state)
     await interaction.response.send_message(f"Server {server} ban ability set to {state}", ephemeral=True, delete_after=10.0)
     Logger.Log(LogLevel.Log, f"Ban ability set for {server} to {state}")
-    
+
   @ScamGuardBot.Commands.command(name="toggleserverreport", description="In the control server, sets if the given server should have bans processed on them", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
   async def SetReportActionForServer_Control(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer], state:bool):
     if (server <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     if (not ScamGuardBot.Database.IsInServer(server)):
-      await interaction.response.send_message(f"ScamGuard is not in server {server}!", ephemeral=True, delete_after=5.0)    
+      await interaction.response.send_message(f"ScamGuard is not in server {server}!", ephemeral=True, delete_after=5.0)
       return
-    
+
     ScamGuardBot.Database.ToggleServerReport(server, state)
     await interaction.response.send_message(f"Server {server} report ability set to {state}", ephemeral=True, delete_after=10.0)
     Logger.Log(LogLevel.Log, f"Report ability set for {server} to {state}")
-    
+
   @ScamGuardBot.Commands.command(name="inactivecleanup", description="In the control server, cleans up any servers where we don't have correct permissions", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
   async def CleanupInactiveServers_Control(interaction:Interaction, dryrun:bool):
     await interaction.response.send_message(f"Attempting to clean up inactive servers now. Dry Run? {dryrun}")
-    await ScamGuardBot.RunPeriodicLeave(dryrun) 
-  
+    await ScamGuardBot.RunPeriodicLeave(dryrun)
+
   # Setup any database migration
   SetupDatabases()
   # Run the actual bot until the death of this application

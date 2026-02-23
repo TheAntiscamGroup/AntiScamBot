@@ -12,13 +12,13 @@ Messages:TextLibrary = TextLibrary()
 class BaseIdTransformer(app_commands.Transformer):
   async def OnTransform(self, interaction: Interaction, TargetId:int) -> int:
     return TargetId
-    
+
   async def transform(self, interaction: Interaction, value: str) -> int:
     # Capture any mention targets
     matches = UserIdReg.match(value)
     if (matches is not None):
       value = matches.group(1)
-    
+
     # Check if the value is numeric
     if (not value.isnumeric()):
       return -1
@@ -49,7 +49,7 @@ async def CommandErrorHandler(interaction: Interaction, error: app_commands.AppC
   if (interaction.command is None):
     Logger.Log(LogLevel.Error, f"Failed to process command error {error}, interaction.command is none")
     return
-  
+
   InteractionName:str = interaction.command.name
   if (ErrorType == app_commands.CommandOnCooldown):
     ErrorMsg = Messages["cmds_error"]["on_cooldown"].format(cmd=InteractionName)
@@ -65,5 +65,5 @@ async def CommandErrorHandler(interaction: Interaction, error: app_commands.AppC
   else:
     Logger.Log(LogLevel.Error, f"Encountered error running command /{InteractionName}: {str(error)} ```{traceback.format_exc(limit=3)}```")
     ErrorMsg = Messages["cmds_error"]["general"]
-  
+
   await interaction.response.send_message(ErrorMsg, ephemeral=True, delete_after=10.0)

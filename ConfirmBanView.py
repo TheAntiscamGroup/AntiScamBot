@@ -11,21 +11,21 @@ ConfigData:Config = Config()
 class ConfirmBan(SelfDeletingView):
   TargetId:int = 0
   BotInstance = None
-  
+
   def __init__(self, target:int, bot):
     super().__init__(ViewTimeout=90.0)
     self.TargetId = target
     self.BotInstance = bot
-    
+
   async def on_cancel(self, interaction:Interaction):
     await interaction.response.send_message("This action was cancelled.", ephemeral=True, delete_after=10.0)
-    
+
   async def AddTag(self, thread: Thread, Action: BanAction):
     # Attempt to set the forum handled/duplicate tag because this is really annoying otherwise
     try:
       TagToApply:ForumTag
       TagToFind:str = ""
-      
+
       # What kind of tag are we looking for
       if (Action == BanAction.Banned):
         TagToFind = ConfigData["ReportHandledTag"]
@@ -33,7 +33,7 @@ class ConfirmBan(SelfDeletingView):
         TagToFind = ConfigData["ReportDuplicateTag"]
       else:
         return
-      
+
       # Because ScamGuard runs in both the web report and the standard report channel,
       # we need to dynamically scan the tags. It would probably be smarter to cache them, maybe later.
       for tag in cast(ForumChannel, thread.parent).available_tags:
@@ -48,19 +48,19 @@ class ConfirmBan(SelfDeletingView):
         return
     except Exception as ex:
       Logger.Log(LogLevel.Warn, f"Could not set the handled tag in {thread.id} {str(ex)}")
-    
+
   @ui.button(label="Confirm Ban", style=ButtonStyle.danger, row=4)
   async def confirm(self, interaction: Interaction, button: ui.Button):
     # Prevent pressing the button multiple times during asynchronous action.
     if (self.HasInteracted):
       return
-    
+
     Sender:Member|User = interaction.user
     ResponseMsg:str = ""
     if (self.BotInstance is None):
-      Logger.Log(LogLevel.Error, "ConfirmBan view has an invalid bot reference!!")    
+      Logger.Log(LogLevel.Error, "ConfirmBan view has an invalid bot reference!!")
       return
-    
+
     await interaction.response.defer(thinking=True)
     self.HasInteracted = True
     Result:BanAction = await self.BotInstance.HandleBanAction(self.TargetId, Sender, ModerationAction.Ban, interaction.channel_id)
@@ -78,4 +78,3 @@ class ConfirmBan(SelfDeletingView):
     # Make this message silent as we may include an @ mention in here and do not want to bother the user with notifications
     await interaction.followup.send(ResponseMsg, silent=True)
     await self.StopInteractions()
-    

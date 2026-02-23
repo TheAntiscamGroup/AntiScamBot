@@ -14,11 +14,11 @@ ConfigData:Config = Config()
 
 class DatabaseDriver():
   Database:Session = None # pyright: ignore[reportAssignmentType]
-  
+
   ### Initialization/Teardown ###
   def __init__(self, *args, **kwargs):
     self.Open()
-    
+
   def __del__(self):
     self.Close()
 
@@ -38,32 +38,32 @@ class DatabaseDriver():
     if (self.IsConnected()):
       cast(Engine, self.Database.get_bind()).dispose()
       self.Database = None # pyright: ignore[reportAttributeAccessIssue]
-      
+
   def IsConnected(self) -> bool:
     if (self.Database is not None):
       return True
     return False
-  
+
   def HasBackupDirectory(self) -> bool:
     DestinationLocation = os.path.abspath(Config.GetBackupLocation())
     if (not os.path.exists(DestinationLocation)):
       return False
-    
+
     return True
-  
+
   def Backup(self) -> bool:
     if (not self.HasBackupDirectory()):
       Logger.Log(LogLevel.Warn, "Backup directory does not exist!!")
       return False
-    
+
     if (self.IsConnected()):
       self.Database.commit()
       self.Close()
-    
+
     # Copy the database file over here
     DestinationLocation = os.path.abspath(Config.GetBackupLocation())
     shutil.copy(os.path.relpath(Config.GetDBFile()), DestinationLocation)
-    
+
     # Rename the file
     NewFileName:str = time.strftime("%Y%m%d-%H%M%S.db")
     NewFile = os.path.join(DestinationLocation, NewFileName)
@@ -72,11 +72,11 @@ class DatabaseDriver():
     Logger.Log(LogLevel.Log, f"Current database has been backed up to new file {NewFileName}")
     self.Open()
     return True
-  
+
   def CleanupBackups(self):
     if (not self.HasBackupDirectory()):
       return
-    
+
     BackupsCleaned:int = 0
     OlderThan:float = ConfigData["RemoveDaysOldBackups"]
     BackupLocation = os.path.abspath(Config.GetBackupLocation())
@@ -90,9 +90,9 @@ class DatabaseDriver():
           Logger.Log(LogLevel.Log, f"Removing file {File}")
           os.remove(FileLocation)
           BackupsCleaned += 1
-    
+
     Logger.Log(LogLevel.Log, f"Cleaned up {BackupsCleaned} backups older than {OlderThan} days!")
-        
+
   ### Adding/Updating/Removing Server Entries ###
   def AddBotGuilds(self, ListOwnerAndServerTuples, BotID:int):
     BotAdditionUpdates:list[Server] = []
@@ -104,12 +104,12 @@ class DatabaseDriver():
         activator_discord_user_id = -1
       )
       BotAdditionUpdates.append(server)
-    
+
     self.Database.bulk_save_objects(BotAdditionUpdates)
     self.Database.commit()
 
     Logger.Log(LogLevel.Notice, f"Bot #{BotID} had {len(BotAdditionUpdates)} new server updates")
-    
+
   def SetNewServerOwner(self, ServerId:int, NewOwnerId:int, BotId:int):
     stmt = select(Server).where((Server.discord_server_id==ServerId) & (Server.bot_instance_id==BotId))
     server = self.Database.scalars(stmt).first()
@@ -117,27 +117,27 @@ class DatabaseDriver():
     if (server is None):
       Logger.Log(LogLevel.Warn, f"Bot #{BotId} attempted to set new owner on non-assigned server: {ServerId}")
       return
-    
+
     server.owner_discord_user_id = str(NewOwnerId)
 
     self.Database.add(server)
     self.Database.commit()
-    
+
   def SetFromServerSettings(self, ServerId:int, ServerSettings:BotSettingsPayload):
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     serverToChange = self.Database.scalars(stmt).first()
-    
+
     if (serverToChange is None):
       Logger.Log(LogLevel.Warn, f"Bot attempted to set channel updates to {ServerId}, but server doesn't exist in db!")
       return
-    
+
     serverToChange.message_channel = ServerSettings.GetMessageID()
     serverToChange.has_webhooks = 1 if ServerSettings.WantsWebhooks else 0
     serverToChange.kick_sus_users = 1 if ServerSettings.KickSusUsers else 0
     self.Database.add(serverToChange)
     self.Database.commit()
-    
-  
+
+
   def RemoveServerEntry(self, ServerId:int, BotId:int):
     stmt = select(Server).where((Server.discord_server_id==ServerId) & (Server.bot_instance_id==BotId))
     server = self.Database.scalars(stmt).first()
@@ -145,29 +145,29 @@ class DatabaseDriver():
     if (server is None):
       Logger.Log(LogLevel.Warn, f"Bot #{BotId} attempted to remove an non-assigned server: {ServerId}")
       return
-    
+
     # Remove any cooldown entries if we exist in there
     self.RemoveServerCooldown(ServerId)
-    
+
     self.Database.delete(server)
     self.Database.commit()
-    
+
   def ToggleServerBan(self, ServerId:int, NewStatus:bool):
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
     if (server is None):
       return
-    
+
     server.should_ban_in = int(NewStatus)
     self.Database.add(server)
     self.Database.commit()
-    
+
   def ToggleServerReport(self, ServerId:int, NewStatus:bool):
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
     if (server is None):
       return
-    
+
     server.can_report = int(NewStatus)
     self.Database.add(server)
     self.Database.commit()
@@ -176,7 +176,7 @@ class DatabaseDriver():
     NumActivationChanges = 0
     NumActivationAdditions = 0
     ActiveVal = int(IsActive)
-    
+
     for ServerId in Servers:
       # If we're not in the server, and we've been given an OwnerId, then create the server
       # IsActive SHOULD be False when passed in this manner
@@ -189,7 +189,7 @@ class DatabaseDriver():
             discord_server_id = ServerId,
             owner_discord_user_id = OwnerId,
             activation_state = ActiveVal,
-            activator_discord_user_id = -1, 
+            activator_discord_user_id = -1,
           )
 
           self.Database.add(serverToChange)
@@ -202,7 +202,7 @@ class DatabaseDriver():
         if (serverToChange is None):
           Logger.Log(LogLevel.Warn, f"Attempted to change server info for {ServerId} but DB entry was missing!")
           return
-        
+
         serverToChange.activation_state = ActiveVal
         serverToChange.activator_discord_user_id = str(ActivatorId)
 
@@ -216,21 +216,21 @@ class DatabaseDriver():
       Logger.Log(LogLevel.Notice, f"Server activation changed in {NumActivationChanges} servers to {str(IsActive)} by {ActivatorId}")
 
     self.Database.commit()
-    
+
   ### Server Forbidden ###
   def ForbidServerActivation(self, ServerId: int, UserId: int):
     if (self.IsServerForbidden(ServerId)):
       return False
-    
+
     NewForbiddenServer = DeniedServers(
       discord_server_id = ServerId,
       adjudicar_handle = UserId,
     )
-    
+
     self.Database.add(NewForbiddenServer)
     self.Database.commit()
     return True
-    
+
   def RemoveForbiddenActivation(self, ServerId: int):
     stmt = select(DeniedServers).where(DeniedServers.discord_server_id==ServerId)
     serverban = self.Database.scalars(stmt).first()
@@ -240,16 +240,16 @@ class DatabaseDriver():
     self.Database.delete(serverban)
     self.Database.commit()
     return True
-    
+
   def IsServerForbidden(self, ServerId: int):
     stmt = select(DeniedServers).where(DeniedServers.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
     if (server is None):
       return False
     return True
-    
+
   ### Reconcile Servers ###
-  def ReconcileServers(self, Servers, BotId:int):       
+  def ReconcileServers(self, Servers, BotId:int):
     NewAdditions = []
     # Discord Guild IDs that we will later use to remove
     ServersIn:list[int] = []
@@ -260,11 +260,11 @@ class DatabaseDriver():
       # Check to see if we know about this server already.
       if (not self.IsInServer(DiscordServer.id)):
         NewAdditions.append(DiscordServer)
-      
+
       # Ignore the control server but add any other servers to this list.
       if (DiscordServer.id != ControlServerID):
         ServersIn.append(DiscordServer.id)
-    
+
     # Add any new servers we have found
     if (len(NewAdditions) > 0):
       self.AddBotGuilds(NewAdditions, BotId)
@@ -287,7 +287,7 @@ class DatabaseDriver():
         # it's a floating entry in the database and should be removed.
         ServersIn.append(ServerId)
         continue
-        
+
     if (len(ServersIn) > 0):
       Logger.Log(LogLevel.Notice, f"Bot needs to reconcile {len(ServersIn)} servers from the list")
     else:
@@ -305,7 +305,7 @@ class DatabaseDriver():
     if (server is None):
       return False
     return True
-  
+
   def IsActivatedInServer(self, ServerId:int) -> bool:
     if (not self.IsInServer(ServerId)):
       return False
@@ -319,7 +319,7 @@ class DatabaseDriver():
       return True
 
     return False
-  
+
   def CanServerReport(self, ServerId:int) -> bool:
     if (not self.IsInServer(ServerId)):
       return False
@@ -342,12 +342,12 @@ class DatabaseDriver():
       return False
 
     return True
-  
+
   # Returns ban information
   def GetBanInfo(self, TargetId:int) -> Ban|None:
     stmt = select(Ban).where(Ban.discord_user_id==TargetId)
     return self.Database.scalars(stmt).first()
-  
+
   # Returns server information
   def GetServerInfo(self, ServerId:int) -> Server|None:
     stmt = select(Server).where(Server.discord_server_id==ServerId)
@@ -363,7 +363,7 @@ class DatabaseDriver():
       assigner_discord_user_id = BannerId,
       assigner_discord_user_name = BannerName
     )
-    
+
     if (ThreadId is not None):
       ban.evidence_thread = ThreadId
 
@@ -371,11 +371,11 @@ class DatabaseDriver():
     self.Database.commit()
 
     return BanAction.Banned
-  
+
   def RemoveBan(self, TargetId:int) -> BanAction:
     if (not self.DoesBanExist(TargetId)):
       return BanAction.NotExist
-    
+
     stmt = select(Ban).where(Ban.discord_user_id==TargetId)
     ban = self.Database.scalars(stmt).first()
 
@@ -383,36 +383,36 @@ class DatabaseDriver():
     self.Database.commit()
 
     return BanAction.Unbanned
-  
+
   ### Updating Ban Data ###
   def SetEvidenceThread(self, TargetId:int, ThreadId:int):
     if (TargetId <= 0 or ThreadId <= 0):
       return
-    
+
     if (not self.DoesBanExist(TargetId)):
       return
-    
+
     stmt = select(Ban).where(Ban.discord_user_id==TargetId)
     if (stmt is None):
       return
-    
+
     banToChange = self.Database.scalars(stmt).first()
     if (banToChange is None):
       return
-    
+
     banToChange.evidence_thread = ThreadId
     self.Database.add(banToChange)
-  
+
   ### Getting Server Information ###
   def GetAllServersOfOwner(self, OwnerId:int) -> list[Server]:
     stmt = select(Server).where(Server.owner_discord_user_id==OwnerId)
     servers = self.Database.scalars(stmt).all()
-    
+
     if (not len(servers)):
       Logger.Log(LogLevel.Warn, f"Failed to load servers for given discord user id of: {OwnerId}!")
-    
+
     return list(servers)
-    
+
   def GetOwnerOfServer(self, ServerId:int) -> int|None:
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
@@ -422,7 +422,7 @@ class DatabaseDriver():
       return None
 
     return int(server.owner_discord_user_id)
-  
+
   def GetBotIdForServer(self, ServerId:int) -> int|None:
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
@@ -432,7 +432,7 @@ class DatabaseDriver():
       return None
 
     return int(server.bot_instance_id)
-  
+
   def GetChannelIdForServer(self, ServerId:int) -> int|None:
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
@@ -444,19 +444,19 @@ class DatabaseDriver():
     ReturnValue:int = int(server.message_channel)
     if (ReturnValue == 0):
       return None
-    
+
     return ReturnValue
 
   def GetAllBans(self, NumLastActions:int=0) -> list[Ban]:
     stmt = select(Ban)
-    
+
     if (NumLastActions > 0):
       stmt = stmt.order_by(desc(Ban.created_at)).limit(NumLastActions)
     else:
       stmt = stmt.order_by(asc(Ban.created_at))
-    
+
     return list(self.Database.scalars(stmt).all())
-  
+
   def GetAllServers(self, FilterOnlyActivated:bool=False, OfInstance:int=-1, FilterBanability:bool=False, FilterKicking:bool=False) -> list[Server]:
     stmt = select(Server)
 
@@ -465,18 +465,18 @@ class DatabaseDriver():
 
     if (OfInstance > -1):
       stmt = stmt.where(Server.bot_instance_id==OfInstance)
-      
+
     if (FilterBanability):
       stmt = stmt.where(Server.should_ban_in==1)
-      
+
     if (FilterKicking):
       stmt = stmt.where(Server.kick_sus_users==1)
 
     return list(self.Database.scalars(stmt).all())
-  
+
   def GetAllActivatedServers(self, OfInstance:int=-1) -> list[Server]:
     return self.GetAllServers(True, OfInstance)
-  
+
   def GetAllActivatedServersForAction(self, OfInstance:int=-1, Action:ModerationAction=ModerationAction.Nothing) -> list[Server]:
     match Action:
       case ModerationAction.Ban | ModerationAction.Unban:
@@ -485,68 +485,68 @@ class DatabaseDriver():
         return self.GetAllServers(True, OfInstance, False, True)
 
     return []
-  
+
   def GetAllDeactivatedServers(self) -> list[Server]:
     ControlServerID:int = ConfigData["ControlServer"]
     # Always ignore the control server
     stmt = select(Server).where(Server.activation_state==False).where(Server.discord_server_id!=ControlServerID)
 
     return list(self.Database.scalars(stmt).all())
-  
+
   ### Cooldown ###
   def GetServerCooldown(self, ServerId:int) -> ExhaustedServer|None:
     stmt = select(ExhaustedServer).where(ExhaustedServer.discord_server_id==ServerId)
     return self.Database.scalars(stmt).first()
-  
+
   def IsServerInCooldown(self, ServerId:int) -> bool:
     return self.GetServerCooldown(ServerId) is not None
-  
+
   def IsProcessingServerCooldown(self, ServerId:int) -> bool:
     ServerObj:ExhaustedServer|None = self.GetServerCooldown(ServerId)
     if (ServerObj is None):
       return False
-    
+
     return ServerObj.is_processing > 0
-  
+
   def SetProcessingServerCooldown(self, ServerId:int, NewFlag:bool):
     exUpdate:ExhaustedServer|None = self.GetServerCooldown(ServerId)
     if (exUpdate is None):
       return
-    
+
     exUpdate.is_processing = NewFlag
     self.Database.add(exUpdate)
     self.Database.commit()
-  
+
   def UpdateServerCooldown(self, ServerId:int, NumCompleted:int) -> int:
     exhaustedUpdate:ExhaustedServer|None = self.GetServerCooldown(ServerId)
-    
+
     # Create if it doesn't exist.
     if (exhaustedUpdate is None):
       exhaustedUpdate = ExhaustedServer()
       exhaustedUpdate.discord_server_id = ServerId
-    
+
     if (exhaustedUpdate.current_pos is not None and exhaustedUpdate.current_pos > 0):
       exhaustedUpdate.current_pos = exhaustedUpdate.current_pos + NumCompleted
     else:
       exhaustedUpdate.current_pos = NumCompleted
-    
+
     exhaustedUpdate.is_processing = False
     self.Database.add(exhaustedUpdate)
     self.Database.commit()
-    
+
     return exhaustedUpdate.current_pos
-  
+
   def RemoveServerCooldown(self, ServerId:int):
     server = self.GetServerCooldown(ServerId)
     if (server is None):
       return
-    
+
     self.Database.delete(server)
     self.Database.commit()
 
   def GetExhaustedServers(self, OverrideTime:bool=False):
     stmt = select(ExhaustedServer)
-    
+
     if (OverrideTime is False):
       CooldownWaitTime:int = ConfigData["CooldownWaitInHours"]
       BeginningOfTime:datetime = datetime.fromtimestamp(0)
@@ -555,23 +555,23 @@ class DatabaseDriver():
       print(ADayAgoTime)
       stmt = stmt.where(ExhaustedServer.last_run.between(BeginningOfTime, ADayAgoTime))
     return self.Database.scalars(stmt).all()
-  
+
   def GetAllExhaustedServers(self):
     return self.Database.scalars(select(ExhaustedServer)).all()
-  
+
   ### Stats ###
   def GetNumBans(self) -> int:
     stmt = select(func.count()).select_from(Ban)
     return self.Database.scalars(stmt).first() or 0
-  
+
   def GetNumActivatedServers(self) -> int:
     stmt = select(func.count()).select_from(Server).where(Server.activation_state==True)
     return self.Database.scalars(stmt).first() or 0
-  
+
   def GetNumServers(self) -> int:
     stmt = select(func.count()).select_from(Server)
     return self.Database.scalars(stmt).first() or 0
-  
+
   def GetNumExhaustedServers(self) -> int:
     stmt = select(func.count()).select_from(ExhaustedServer)
     return self.Database.scalars(stmt).first() or 0

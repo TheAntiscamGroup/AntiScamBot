@@ -1,11 +1,11 @@
 from enum import IntEnum, auto
 
-class CompareEnum(IntEnum):  
+class CompareEnum(IntEnum):
   def __lt__(self, other):
     if self.__class__ is other.__class__:
       return self.value < other.value
     return NotImplemented
-      
+
   def __str__(self) -> str:
     return self.name
 
@@ -22,7 +22,7 @@ class BanAction(CompareEnum):
   Duplicate=auto()
   NotExist=auto()
   DBError=auto()
-  
+
 # Enum that expresses bans on a server level based off discord returns
 class BanResult(CompareEnum):
   Processed=auto()
@@ -33,7 +33,7 @@ class BanResult(CompareEnum):
   ServerOwner=auto()
   ServiceError=auto()
   Error=auto()
-  
+
 class RelayMessageType(CompareEnum):
   Hello=auto()
   BanUser=auto()
@@ -45,7 +45,7 @@ class RelayMessageType(CompareEnum):
   ProcessServerActivation=auto()
   Ping=auto()
   Kick=auto()
-  
+
 class ChannelPostPermissions(CompareEnum):
   NoPerms=auto()
   SendMessageOnly=auto()

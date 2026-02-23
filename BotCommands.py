@@ -14,13 +14,13 @@ ConfigData:Config = Config()
 class GlobalScamCommands(app_commands.Group):
   def GetInstance(self):
     return self.extras["instance"]
-  
+
   def IsActivated(self, InteractionId:int) -> bool:
     return (self.GetInstance().Database.IsActivatedInServer(InteractionId))
-  
+
   def CanReport(self, InteractionId:int) -> bool:
     return (self.GetInstance().Database.CanServerReport(InteractionId))
-   
+
   @app_commands.command(name="check", description="Checks to see if a Discord user id is banned")
   @app_commands.checks.has_permissions(ban_members=True)
   @app_commands.checks.cooldown(1, 2.0)
@@ -28,12 +28,12 @@ class GlobalScamCommands(app_commands.Group):
     if (target <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
-    
+
     InteractionId:int|None = interaction.guild_id
     if (InteractionId is None):
       await interaction.response.send_message(Messages["cmds_error"]["only_in_server"])
       return
-    
+
     if (self.IsActivated(InteractionId)):
       ResponseEmbed:Embed = await self.GetInstance().CreateBanEmbed(target)
       await interaction.response.send_message(embed = ResponseEmbed)
@@ -47,22 +47,22 @@ class GlobalScamCommands(app_commands.Group):
     if (interaction.guild_id == ConfigData["ControlServer"]):
       await interaction.response.send_message(Messages["cmds_error"]["in_control_server"], ephemeral=True, delete_after=5.0)
       return
-    
+
     InteractionId:int|None = interaction.guild_id
     if (InteractionId is None):
       await interaction.response.send_message(Messages["cmds_error"]["only_in_server"])
       return
-    
+
     # Block any usages of the commands if the server is not activated.
     if (not self.IsActivated(InteractionId)):
       await interaction.response.send_message(Messages["cmds_error"]["needs_activation"], ephemeral=True, delete_after=10.0)
       return
-    
+
     # Check if the server is barred from reporting
     if (not self.CanReport(InteractionId)):
       await interaction.response.send_message(Messages["cmds_error"]["remote_reports_banned"], ephemeral=True, delete_after=10.0)
       return
-    
+
     # If it cannot be transformed, print an error
     if (target == -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True)
@@ -77,11 +77,11 @@ class GlobalScamCommands(app_commands.Group):
     if (UserToSend is None):
       await interaction.response.send_message(Messages["cmds_error"]["do_manual_report"], ephemeral=True)
       return
-    
+
     # Check if the user is already banned
     if (self.GetInstance().Database.DoesBanExist(UserToSend.id)):
       await interaction.response.send_message(Messages["cmds_error"]["already_banned"], ephemeral=True, delete_after=20.0)
-    
+
     await interaction.response.send_modal(SubmitScamReport(UserToSend))
 
   @app_commands.command(name="setup", description="Set up ScamGuard")
@@ -91,18 +91,18 @@ class GlobalScamCommands(app_commands.Group):
     if (interaction.guild_id == ConfigData["ControlServer"]):
       await interaction.response.send_message(Messages["cmds_error"]["in_control_server"], ephemeral=True, delete_after=5.0)
       return
-    
+
     InteractionId:int|None = interaction.guild_id
     if (InteractionId is None):
       await interaction.response.send_message(Messages["cmds_error"]["only_in_server"])
       return
-    
+
     # Block any usages of the setup command if the server is activated.
     if (not self.IsActivated(InteractionId)):
       await self.GetInstance().ServerSetupHelper.OpenServerSetupModel(interaction)
     else:
       await interaction.response.send_message(Messages["cmds_error"]["server_activated"], ephemeral=True, delete_after=15.0)
-     
+
   @app_commands.command(name="tool", description="Provides a link to install the ScamGuard User Tool")
   @app_commands.describe(whisper='If the link should be not whispered (only changeable if you are a mod)')
   @app_commands.checks.cooldown(1, 2.0)
@@ -114,9 +114,9 @@ class GlobalScamCommands(app_commands.Group):
       # Check to see if a moderator typed this command
       if (interaction.channel.permissions_for(cast(Member, interaction.user)).ban_members):
         ShouldEphermeral = whisper
-    
+
     await interaction.response.send_message("https://discord.com/oauth2/authorize?client_id=1443130827662823557", delete_after=10.0, ephemeral=ShouldEphermeral)
-      
+
   @app_commands.command(name="config", description="Set ScamGuard Settings")
   @app_commands.checks.has_permissions(ban_members=True)
   @app_commands.checks.cooldown(1, 5.0)
@@ -124,12 +124,12 @@ class GlobalScamCommands(app_commands.Group):
     if (interaction.guild_id == ConfigData["ControlServer"]):
       await interaction.response.send_message(Messages["cmds_error"]["in_control_server"], ephemeral=True, delete_after=5.0)
       return
-    
+
     InteractionId:int|None = interaction.guild_id
     if (InteractionId is None):
       await interaction.response.send_message(Messages["cmds_error"]["only_in_server"])
       return
-    
+
     if (not self.IsActivated(InteractionId)):
       await interaction.response.send_message(Messages["cmds_error"]["needs_activation"], ephemeral=True, delete_after=30.0)
     else:
@@ -137,7 +137,7 @@ class GlobalScamCommands(app_commands.Group):
       BotInstance = self.GetInstance()
       ResponseEmbed:Embed = BotInstance.CreateBaseEmbed(Messages["cmds"]["settings"])
       BotInstance.AddSettingsEmbedInfo(ResponseEmbed)
-      
+
       SettingsView:ServerSettingsView = ServerSettingsView(self.GetInstance().ApplySettings, interaction)
       await SettingsView.Send(interaction, [ResponseEmbed])
 

@@ -21,23 +21,23 @@ This bot requires that you are using (at minimum) Python 3.11
 To start the bot locally, create a .env file in the current directory with the following environment variables:
 
 ```txt
-DISCORD_TOKEN="your discord bot token"  
-DATABASE_FILE="a path to your sql file"  
-CONFIG_FILE="a path to your config file"  
+DISCORD_TOKEN="your discord bot token"
+DATABASE_FILE="a path to your sql file"
+CONFIG_FILE="a path to your config file"
 API_KEYS="a path to the file with api keys for subinstance bots to spin up"
-BACKUP_LOCATION="a path to a directory to store your backup sql file"  
-DEVELOPMENT_MODE="true if you want to test without banning, false to ban people"  
+BACKUP_LOCATION="a path to a directory to store your backup sql file"
+DEVELOPMENT_MODE="true if you want to test without banning, false to ban people"
 ```
 
 Here is an example of a .env file.
 
 ```txt
-DISCORD_TOKEN="0"  
-DATABASE_FILE="database.db"  
+DISCORD_TOKEN="0"
+DATABASE_FILE="database.db"
 CONFIG_FILE="config.json"
-API_KEYS="apikeys.json"    
-BACKUP_LOCATION="backup/"  
-DEVELOPMENT_MODE="true"  
+API_KEYS="apikeys.json"
+BACKUP_LOCATION="backup/"
+DEVELOPMENT_MODE="true"
 ```
 
 You can also have these environment variables set directly

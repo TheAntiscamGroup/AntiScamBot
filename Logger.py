@@ -1,7 +1,7 @@
 from enum import auto
 from BotEnums import CompareEnum
 import datetime, time, asyncio, sys, coloredlogs
-from logger_tt import setup_logging, logger 
+from logger_tt import setup_logging, logger
 
 __all__ = ["LogLevel", "Logger"]
 
@@ -36,7 +36,7 @@ class Logger():
   @staticmethod
   def GetTimestamp():
     return time.time()
-    
+
   @staticmethod
   def PrintDate():
     NowTime = str(datetime.datetime.now())
@@ -53,20 +53,20 @@ class Logger():
     except Exception as ex:
       logger.debug(f"Encountered error on conditional check {ex}")
       return
-    
+
     if (ShouldPrint):
       Logger.Log(Level, Input)
 
   @staticmethod
   def Log(Level:LogLevel, Input:str):
     global NotificationCallback
-    
+
     if Level < CurrentLoggingLevel:
       return
-    
+
     if CurrentLoggingLevel == LogLevel.Silence:
       return
-    
+
     # Set up color logging
     ColorStr = ""
     LoggerFunc = logger.info
@@ -81,31 +81,31 @@ class Logger():
       LoggerFunc = logger.debug
 
     LoggerFunc(f"{MessageStr}")
-    
+
     if (NotificationCallback is not None and Level >= CurrentNotificationLevel):
       try:
         CurrentLoop = asyncio.get_running_loop()
       except RuntimeError:
         # If there is no currently running loop, then don't bother sending notification messages
         return
-      
+
       # This will automatically get added to the task loop.
       CurrentLoop.create_task(NotificationCallback(f"[{str(Level)}]: {MessageStr}"))
-      
+
   @staticmethod
   def SetLogLevel(NewLevel: LogLevel):
     global CurrentLoggingLevel
-    
+
     CurrentLoggingLevel = NewLevel
-    
+
   @staticmethod
   def GetLogLevel():
     return CurrentLoggingLevel
-    
+
   @staticmethod
   def GetLogLevelName():
     return CurrentLoggingLevel.name
-  
+
   @staticmethod
   def SetNotificationCallback(NewCallback):
     global NotificationCallback
