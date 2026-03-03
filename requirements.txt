@@ -1,6 +1,6 @@
 coloredlogs
 discord.py==2.6.4
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 sqlalchemy
 sqlalchemy.orm
 logger_tt==1.7.4
