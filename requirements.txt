@@ -1,5 +1,5 @@
 coloredlogs
-discord.py==2.7.0
+discord.py==2.7.1
 python-dotenv==1.2.2
 sqlalchemy
 sqlalchemy.orm
