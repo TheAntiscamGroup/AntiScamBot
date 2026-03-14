@@ -203,5 +203,11 @@ class ServerSettingsView(SelfDeletingView):
     else:
       MessageResponse = Messages["settings"]["set_settings"]
 
-    await interaction.response.send_message(MessageResponse, ephemeral=True, delete_after=30.0)
+    if (not interaction.is_expired()):
+      try:
+        await interaction.response.send_message(MessageResponse, ephemeral=True, delete_after=30.0)
+      except:
+        # If the interaction response is gone somehow, ignore any errors, it doesn't really matter too much.
+        pass
+
     await self.StopInteractions()
