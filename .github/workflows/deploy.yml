@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - prod
-      
+
   workflow_dispatch:
     inputs:
         restart_bot:
@@ -20,6 +20,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     permissions: write-all
+    continue-on-error: true
     steps:
       # Error out if not prod
       - name: Verify Branch is Prod
@@ -28,14 +29,12 @@ jobs:
       # Otherwise clean deployments
       - name: Cleanup Previous Deployments
         uses: strumwolf/delete-deployment-environment@v3
-        continue-on-error: true
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           environment: production
           onlyRemoveDeployments: true
-        
+
   deploy:
-    needs: cleanup
     environment: production
     permissions:
       contents: read
@@ -44,12 +43,12 @@ jobs:
     env:
       AUTHKEYNAME: ${{ vars.AUTH_KEY_NAME }}
     runs-on: ubuntu-latest
-    steps:          
+    steps:
     - name: Checkout files
       uses: actions/checkout@v6
       with:
         ref: ${{ github.ref }}
-    
+
     - name: Dependency Update Check
       uses: dorny/paths-filter@v4.0.1
       id: filter
@@ -133,7 +132,7 @@ jobs:
           cd ~/project/AntiScamBot
           .runtime/update.sh
           echo "Finished updating python dependencies"
-          
+
     - name: Restart Instances
       if: ${{ always() && (steps.deps_update.conclusion == 'success' || steps.deps_update.outcome == 'skipped') && steps.kill_bot.conclusion == 'success' }}
       uses: appleboy/ssh-action@master
