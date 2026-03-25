@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Clean GH Actions
         id: clean
-        uses: igorjs/gh-actions-clean-workflow@v7
+        uses: igorjs/gh-actions-clean-workflow@8de2bf6a685b49cbece3bdb16ca5cdb827684161
         with:
           runs_older_than: 4
           runs_to_keep: 5
