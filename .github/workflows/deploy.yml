@@ -1,8 +1,8 @@
 name: Deploy Bot
 on:
-#  push:
-#    branches:
-#      - prod
+  push:
+    branches:
+      - prod
 
   workflow_dispatch:
     inputs:
@@ -35,14 +35,11 @@ jobs:
           onlyRemoveDeployments: true
 
   deploy:
-    if: false
     environment: production
     permissions:
       contents: read
       actions: read
       statuses: read
-    env:
-      AUTHKEYNAME: ${{ vars.AUTH_KEY_NAME }}
     runs-on: ubuntu-latest
     steps:
     - name: Checkout files
@@ -64,86 +61,45 @@ jobs:
             - 'config.json'
             - 'TextStrings.toml'
 
-    # Adding the Private key to a Github Actions Workflow
-    - name: Install SSH Key
-      uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-        log-public-key: false
+    - name: Configure SSH
+      run: |
+        mkdir -p ~/.ssh/
+        echo "$SSH_KEY" > ~/.ssh/staging.key
+        chmod 600 ~/.ssh/staging.key
+        cat >>~/.ssh/config <<END
+        Host staging
+          HostName $SSH_HOST
+          User $SSH_USER
+          IdentityFile ~/.ssh/staging.key
+          StrictHostKeyChecking no
+        END
+      env:
+        SSH_HOST: ${{ secrets.SSH_HOST }}
+        SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        SSH_USER: ${{ secrets.SSH_USERNAME }}
 
     # If any runtime files updated, then we need to stop all bot instances.
     - name: Kill Running Instances
       id: kill_bot
+      continue-on-error: true
       if: steps.filter.outputs.deps_update_needed == 'true' || steps.filter.outputs.core_updated == 'true' || inputs.restart_bot == 'true'
-      uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
-      with:
-        host: ${{secrets.SSH_HOST}}
-        key: ${{secrets.SSH_KEY}}
-        username: ${{secrets.SSH_USERNAME}}
-        script: |
-          cd ~/project/AntiScamBot
-          .runtime/kill.sh
-          echo "Service Killed."
+      run: ssh staging 'cd ~/project/AntiScamBot && .runtime/kill.sh'
 
     # We want to update the project regardless.
     - name: Sync Project
-      uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
-      with:
-        host: ${{secrets.SSH_HOST}}
-        key: ${{secrets.SSH_KEY}}
-        username: ${{secrets.SSH_USERNAME}}
-        envs: AUTHKEYNAME
-        script: |
-          gitpull() {
-            if git pull; then
-              return 0
-            else
-              return 1
-            fi
-          }
-          cd ~/project/AntiScamBot
-          echo "Setting SSH Agent"
-          eval "$(ssh-agent -s)"
-          echo "Readding SSH Key"
-          ssh-add ~/.ssh/$AUTHKEYNAME
-          echo "Checking Git Readability"
-          ssh -T git@github.com
-          echo "Updating directory"
-          if gitpull; then
-            echo "Deploy success"
-          else
-            echo "Stashing changes!"
-            git stash
-            echo "Resyncing..."
-            gitpull
-            echo "Remember to handle the unstashing later"
-          fi
+      run: ssh staging 'cd ~/project/AntiScamBot && .runtime/pull.sh'
 
     - name: Update Python Dependencies
       id: deps_update
       if: steps.filter.outputs.deps_update_needed == 'true'
-      uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
       continue-on-error: false
-      with:
-        host: ${{secrets.SSH_HOST}}
-        key: ${{secrets.SSH_KEY}}
-        username: ${{secrets.SSH_USERNAME}}
-        script: |
-          set -e
-          cd ~/project/AntiScamBot
-          .runtime/update.sh
-          echo "Finished updating python dependencies"
+      run: ssh staging 'set -e && cd ~/project/AntiScamBot && .runtime/update.sh'
 
     - name: Restart Instances
       if: ${{ always() && (steps.deps_update.conclusion == 'success' || steps.deps_update.outcome == 'skipped') && steps.kill_bot.conclusion == 'success' }}
-      uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
-      with:
-        host: ${{secrets.SSH_HOST}}
-        key: ${{secrets.SSH_KEY}}
-        username: ${{secrets.SSH_USERNAME}}
-        command_timeout: 5s
-        script: |
-          set -e
-          echo "Restarting instances"
-          cd ~/project/AntiScamBot
-          nohup .runtime/run.sh &>/dev/null &
+      run: ssh staging 'cd ~/project/AntiScamBotAPI && .runtime/run.sh -d'
+
+    # Remove the key once done
+    - name: Kill SSH Add
+      if: ${{ always() }}
+      run: rm -f ~/.ssh/staging.key

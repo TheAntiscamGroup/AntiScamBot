@@ -1,6 +1,14 @@
 #!/bin/bash
-# Remember to run this with nohup!
-echo starting bot
+trap '' HUP
+# weird bash magic to rerun as a daemon
+case "$1" in
+    -d)
+    $0 < /dev/null &> /dev/null & disown
+    exit 0
+    ;;
+*)
+    ;;
+esac
 pwd | grep -q .runtime
 if [ "$?" -eq "0" ]; then
     cd ..
