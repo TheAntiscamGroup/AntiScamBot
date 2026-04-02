@@ -15,8 +15,8 @@ jobs:
         id: clean
         uses: igorjs/gh-actions-clean-workflow@8de2bf6a685b49cbece3bdb16ca5cdb827684161
         with:
-          runs_older_than: 4
-          runs_to_keep: 5
+          runs_older_than: 2
+          runs_to_keep: 3
 
       - name: Display metrics
         run: |

@@ -10,10 +10,20 @@ updates:
     open-pull-requests-limit: 3
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 12
+      semver-patch-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
     open-pull-requests-limit: 2
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 12
+      semver-patch-days: 7
 
