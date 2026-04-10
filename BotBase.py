@@ -412,6 +412,8 @@ Failed Copied Evidence Links:
             ContentType = response.headers['content-type']
             if ContentType not in ImageFormats:
               Logger.Log(LogLevel.Warn, f"Bot (#{self.BotID}) was given {Evidence} for {ReportUserId} but that is of type {ContentType} which is not an image")
+              ReportContent += f"* {Evidence}\n"
+              HadCopyFailure = True
               continue
             EvidenceData = io.BytesIO(await response.read())
             NewFile:discord.File = discord.File(EvidenceData, f'Evidence{NumEvidences}.png')
