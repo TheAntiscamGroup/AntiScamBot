@@ -970,7 +970,7 @@ Failed Copied Evidence Links:
     BanId:int = User.id
     RetryLimit:int = ConfigData["MaxActionRetries"]
     SleepStart:float = ConfigData["SleepAmount"]
-    while NumRetries <= 5:
+    while NumRetries <= RetryLimit:
       await asyncio.sleep(SleepStart * (NumRetries + 1))
       Logger.Log(LogLevel.Log, f"Attempting to retry {Action} on {Server.id}, attempt {NumRetries}/{RetryLimit}")
       Response = await self.PerformActionOnServer(Server, User, Reason, Action)
