@@ -19,6 +19,7 @@
     "RelayPort": 9500,
     "ActionsPerTick": 25,
     "SleepAmount": 0.5,
+    "MaxActionRetries": 5,
     "MaxBulkImports": 1900,
     "InactiveServerDayWindow": 7,
     "RunIdleCleanupEveryXHours": 23,

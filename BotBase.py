@@ -787,8 +787,8 @@ Failed Copied Evidence Links:
 
       UserId:int = int(Ban.discord_user_id)
       UserToBan:discord.User = cast(discord.User, discord.Object(UserId))
-      BanResponse = await self.PerformActionOnServer(Server, UserToBan,
-                               f"User banned by {Ban.assigner_discord_user_name}", ModerationAction.Ban)
+      BanMessage:str = f"User banned by {Ban.assigner_discord_user_name}"
+      BanResponse = await self.PerformActionOnServer(Server, UserToBan, BanMessage, ModerationAction.Ban)
       # See if the ban did go through.
       if (BanResponse[0] == False):
         NumFailures += 1
@@ -797,10 +797,9 @@ Failed Copied Evidence Links:
           Logger.Log(LogLevel.Error, f"Unable to process ban on user {UserId} for server {ServerInfoStr} due to exceed")
           BanReturn = BanResult.BansExceeded
           break
+        elif (BanResponseFlag == BanResult.ServiceError):
+          self.AddAsyncTask(self.RetryActionForService(Server, UserToBan, BanMessage, ModerationAction.Ban))
         else:
-          # NOTE: discord outages will automatically retry this ban in the future,
-          # there may exist a case where the ban might slip through if the given server hits an external global threshold
-          # not just with our bot
           self.AddAsyncTask(self.PostBanFailureInformation(Server, UserId, BanResponseFlag, ModerationAction.Ban))
           if (BanResponseFlag == BanResult.LostPermissions):
             # TODO: Perhaps handle this better, there's no way to really retry
@@ -911,7 +910,7 @@ Failed Copied Evidence Links:
               continue
             self.AddAsyncTask(self.PostBanFailureInformation(DiscordServer, TargetId, ResultFlag, Action))
           elif (ResultFlag == BanResult.ServiceError):
-            self.AddAsyncTask(self.PerformActionOnServer(DiscordServer, UserToWorkOn, BanReason, Action, True))
+            self.AddAsyncTask(self.RetryActionForService(DiscordServer, UserToWorkOn, BanReason, Action))
       else:
         # TODO: Potentially remove the server from the list?
         Logger.Log(LogLevel.Error, f"The server {ServerId} did not respond on a look up, does it still exist?")
@@ -919,14 +918,11 @@ Failed Copied Evidence Links:
     Logger.Log(LogLevel.Notice, f"Action execution on {TargetId} performed in {NumServersPerformed}/{NumServers} servers")
 
   # Handles moderation actions an user in each individual server
-  async def PerformActionOnServer(self, Server:discord.Guild, User:discord.Member|discord.User, Reason:str, Action:ModerationAction, ShouldWait:bool=False) -> tuple[bool, BanResult]:
+  async def PerformActionOnServer(self, Server:discord.Guild, User:discord.Member|discord.User, Reason:str, Action:ModerationAction) -> tuple[bool, BanResult]:
     IsDevelopmentMode:bool = ConfigData.IsDevelopment()
     BanId:int = User.id
     ServerOwnerId:int = Server.owner_id or 0
     ServerInfo:str = self.GetServerInfoStr(Server)
-    if (ShouldWait):
-      await asyncio.sleep(ConfigData["SleepAmount"])
-      Logger.Log(LogLevel.Notice, f"Attempting {Action} on {BanId} in {ServerInfo} again")
 
     try:
       Logger.Log(LogLevel.Verbose, f"Performing {Action} action on {BanId} in {ServerInfo} owned by {ServerOwnerId}")
@@ -963,11 +959,34 @@ Failed Copied Evidence Links:
         Logger.Log(LogLevel.Warn, f"Hit the bans exceeded error while trying to perform actions on server {ServerInfo}")
         return (False, BanResult.BansExceeded)
       if (ex.status == 503):
-        Logger.Log(LogLevel.Warn, f"We encountered an 503 error while trying to perform actions on {BanId} for server {ServerInfo}, will retry")
+        Logger.Log(LogLevel.Warn, f"We encountered an 503 while trying {Action} on {BanId} for server {ServerInfo}, will retry")
         return (False, BanResult.ServiceError)
 
       Logger.Log(LogLevel.Warn, f"We encountered an error {(str(ex))} while trying to perform for server {ServerInfo} owned by {ServerOwnerId}!")
     return (False, BanResult.Error)
+
+  async def RetryActionForService(self, Server:discord.Guild, User:discord.Member|discord.User, Reason:str, Action:ModerationAction):
+    NumRetries:int = 0
+    BanId:int = User.id
+    RetryLimit:int = ConfigData["MaxActionRetries"]
+    SleepStart:float = ConfigData["SleepAmount"]
+    while NumRetries <= 5:
+      await asyncio.sleep(SleepStart * (NumRetries + 1))
+      Logger.Log(LogLevel.Log, f"Attempting to retry {Action} on {Server.id}, attempt {NumRetries}/{RetryLimit}")
+      Response = await self.PerformActionOnServer(Server, User, Reason, Action)
+      if (Response[0] is True):
+        Logger.Log(LogLevel.Notice, f"Server {Server.id} has processed {Action} on {BanId} successfully")
+        break
+      else:
+        ErrorReason:BanResult = Response[1]
+        if (ErrorReason == BanResult.LostPermissions or ErrorReason == BanResult.InvalidUser or ErrorReason == BanResult.ServerOwner):
+          Logger.Log(LogLevel.Warn, f"Retry action was dropped for {Server.id} because of {ErrorReason}")
+          break
+        elif (ErrorReason == BanResult.ServiceError):
+          Logger.Log(LogLevel.Verbose, f"Encountered service error, dropping and retrying")
+          # Here we're just going to let 503's compound.
+          NumRetries -= 1
+      NumRetries += 1
 
   # Handles messaging to server moderators if a ban fails.
   async def PostBanFailureInformation(self, Server:discord.Guild, UserId:int, Reason:BanResult, Action:ModerationAction):
