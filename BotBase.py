@@ -798,7 +798,7 @@ Failed Copied Evidence Links:
           BanReturn = BanResult.BansExceeded
           break
         elif (BanResponseFlag == BanResult.ServiceError):
-          self.AddAsyncTask(self.RetryActionForService(Server, UserToBan, BanMessage, ModerationAction.Ban))
+          self.AddAsyncTask(self.RetryActionForServer(Server, UserToBan, BanMessage, ModerationAction.Ban))
         else:
           self.AddAsyncTask(self.PostBanFailureInformation(Server, UserId, BanResponseFlag, ModerationAction.Ban))
           if (BanResponseFlag == BanResult.LostPermissions):
@@ -910,7 +910,7 @@ Failed Copied Evidence Links:
               continue
             self.AddAsyncTask(self.PostBanFailureInformation(DiscordServer, TargetId, ResultFlag, Action))
           elif (ResultFlag == BanResult.ServiceError):
-            self.AddAsyncTask(self.RetryActionForService(DiscordServer, UserToWorkOn, BanReason, Action))
+            self.AddAsyncTask(self.RetryActionForServer(DiscordServer, UserToWorkOn, BanReason, Action))
       else:
         # TODO: Potentially remove the server from the list?
         Logger.Log(LogLevel.Error, f"The server {ServerId} did not respond on a look up, does it still exist?")
@@ -965,7 +965,7 @@ Failed Copied Evidence Links:
       Logger.Log(LogLevel.Warn, f"We encountered an error {(str(ex))} while trying to perform for server {ServerInfo} owned by {ServerOwnerId}!")
     return (False, BanResult.Error)
 
-  async def RetryActionForService(self, Server:discord.Guild, User:discord.Member|discord.User, Reason:str, Action:ModerationAction):
+  async def RetryActionForServer(self, Server:discord.Guild, User:discord.Member|discord.User, Reason:str, Action:ModerationAction):
     NumRetries:int = 0
     BanId:int = User.id
     RetryLimit:int = ConfigData["MaxActionRetries"]
