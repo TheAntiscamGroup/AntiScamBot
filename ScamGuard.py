@@ -179,8 +179,10 @@ class ScamGuard(DiscordBot):
     try:
       await thread.leave()
       return True
-    except:
-      Logger.Log(LogLevel.Warn, f"Unable to leave the thread, encountered exception")
+    except Exception as ex:
+      # Only print out exceptions if we're the control server, silently fail elsewhere.
+      if (thread.guild.id == ConfigData["ControlServer"]):
+        Logger.Log(LogLevel.Warn, f"Unable to leave the thread {thread.id}, encountered exception {str(ex)}")
     return False
 
   async def on_thread_join(self, thread: Thread):
