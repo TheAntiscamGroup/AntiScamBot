@@ -97,7 +97,7 @@ jobs:
 
     - name: Restart Instances
       if: ${{ always() && (steps.deps_update.conclusion == 'success' || steps.deps_update.outcome == 'skipped') && steps.kill_bot.conclusion == 'success' }}
-      run: ssh staging 'cd ~/project/AntiScamBotAPI && .runtime/run.sh -d'
+      run: ssh staging 'cd ~/project/AntiScamBot && .runtime/run.sh -d'
 
     # Remove the key once done
     - name: Kill SSH Add
