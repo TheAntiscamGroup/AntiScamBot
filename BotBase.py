@@ -900,17 +900,17 @@ Failed Copied Evidence Links:
             elif (ResultFlag == BanResult.ServerOwner):
               Logger.Log(LogLevel.Error, f"Attempted to ban a server owner! {ServerStr} with user to work {UserToWorkOn.id} == {DiscordServer.owner_id}")
               continue
-          elif (ResultFlag == BanResult.LostPermissions or ResultFlag == BanResult.Error or ResultFlag == BanResult.BansExceeded):
-            # Check if we should suppress the ban failure message, as the bot will automatically handle it later.
-            if (ResultFlag == BanResult.BansExceeded):
-              if (not self.Database.IsServerInCooldown(ServerId)):
-                Logger.Log(LogLevel.Notice, f"Server {ServerStr} hit ban quota on {BanNumber}, adding them to exhausted servers")
-                # This should be subtracted 1 so that we will retry this action from this ban forward
-                self.Database.UpdateServerCooldown(ServerId, BanNumber - 1)
-              continue
-            self.AddAsyncTask(self.PostBanFailureInformation(DiscordServer, TargetId, ResultFlag, Action))
-          elif (ResultFlag == BanResult.ServiceError):
-            self.AddAsyncTask(self.RetryActionForServer(DiscordServer, UserToWorkOn, BanReason, Action))
+            elif (ResultFlag == BanResult.LostPermissions or ResultFlag == BanResult.Error or ResultFlag == BanResult.BansExceeded):
+              # Check if we should suppress the ban failure message, as the bot will automatically handle it later.
+              if (ResultFlag == BanResult.BansExceeded):
+                if (not self.Database.IsServerInCooldown(ServerId)):
+                  Logger.Log(LogLevel.Notice, f"Server {ServerStr} hit ban quota on {BanNumber}, adding them to exhausted servers")
+                  # This should be subtracted 1 so that we will retry this action from this ban forward
+                  self.Database.UpdateServerCooldown(ServerId, BanNumber - 1)
+                continue
+              self.AddAsyncTask(self.PostBanFailureInformation(DiscordServer, TargetId, ResultFlag, Action))
+            elif (ResultFlag == BanResult.ServiceError):
+              self.AddAsyncTask(self.RetryActionForServer(DiscordServer, UserToWorkOn, BanReason, Action))
       else:
         # TODO: Potentially remove the server from the list?
         Logger.Log(LogLevel.Error, f"The server {ServerId} did not respond on a look up, does it still exist?")
