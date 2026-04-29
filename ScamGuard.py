@@ -250,8 +250,17 @@ class ScamGuard(DiscordBot):
     if (InstanceID in self.SubProcess and self.SubProcess[InstanceID] is not None):
       ExistingProcess:Process = self.SubProcess[InstanceID]
       ExistingProcess.terminate()
-      ExistingProcess.close()
-      self.SubProcess[InstanceID] = None
+      try:
+        # wait for the process to terminate
+        while ExistingProcess.is_alive():
+          await asyncio.sleep(2.0)
+
+        # The process can be closed properly now.
+        ExistingProcess.close()
+      except Exception as ex:
+        Logger.Log(LogLevel.Notice, f"Instance {InstanceID} has a hung instance, removing the subprocess {str(ex)}")
+      finally:
+        self.SubProcess[InstanceID] = None
 
   ### Command Processing & Utils ###
   async def PublishAnnouncement(self, InMessage:str|Embed):
