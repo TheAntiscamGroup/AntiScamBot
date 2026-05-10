@@ -3,5 +3,5 @@ discord.py==2.7.1
 python-dotenv==1.2.2
 sqlalchemy
 sqlalchemy.orm
-logger_tt==1.7.4
+logger_tt==1.7.5
 aiohttp
