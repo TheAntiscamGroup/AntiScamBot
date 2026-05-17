@@ -28,7 +28,7 @@ jobs:
         run: exit 1
       # Otherwise clean deployments
       - name: Cleanup Previous Deployments
-        uses: strumwolf/delete-deployment-environment@a4825dd9648c57da8437a4885c3fcad58beac69c
+        uses: strumwolf/delete-deployment-environment@035f6d27c8b8951729f4d71b2d3d6a7975139476
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           environment: production
