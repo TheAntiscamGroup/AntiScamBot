@@ -744,7 +744,7 @@ Failed Copied Evidence Links:
     UserData.set_footer(text=f"User ID: {TargetId}")
     return UserData
 
-  def SetEmbedColorForAction(self, NewEmbed:Embed, Action:ModerationAction):
+  def SetEmbedColorForAction(self, NewEmbed:discord.Embed, Action:ModerationAction):
     if (Action is ModerationAction.Ban):
       NewEmbed.colour = discord.Colour.red()
     elif (Action is ModerationAction.Unban):
