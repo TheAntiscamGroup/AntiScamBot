@@ -215,6 +215,8 @@ if __name__ == '__main__':
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
 
+    await interaction.response.defer(ephemeral=True, thinking=True)
+
     Sender:Member|User = interaction.user
     Logger.Log(LogLevel.Verbose, f"Scam unban message detected from {Sender} for {targetid}")
     Result:BanAction = await ScamGuardBot.HandleBanAction(targetid, Sender, ModerationAction.Unban)
@@ -229,7 +231,7 @@ if __name__ == '__main__':
     else:
       ResponseMsg = f"The unban for {targetid} is in progress..."
 
-    await interaction.response.send_message(ResponseMsg)
+    await interaction.followup.send(ResponseMsg)
 
   # Control server version of scamcheck
   @ScamGuardBot.Commands.command(name="scamcheck", description="In the control server, check to see if a discord id is banned", guild=CommandControlServer)
