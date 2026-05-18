@@ -207,10 +207,10 @@ if __name__ == '__main__':
       Logger.Log(LogLevel.Log, f"The given id {targetid} is already banned.")
       await interaction.response.send_message(f"{targetid} already exists in the ban database")
 
-  @ScamGuardBot.Commands.command(name="scamunban", description="Unbans a scammer", guild=CommandControlServer)
+  @ScamGuardBot.Commands.command(name="scamunban", description="Unbans an user that was banned", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["ApproverRole"])
-  @app_commands.describe(targetid='The discord id for the user to unban')
-  async def ScamUnban(interaction:Interaction, targetid:app_commands.Transform[int, TargetIdTransformer]):
+  @app_commands.describe(targetid='The discord id for the user to unban', reason='Optional reason for the unban')
+  async def ScamUnban(interaction:Interaction, targetid:app_commands.Transform[int, TargetIdTransformer], reason:str|None=None):
     if (targetid <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
@@ -219,7 +219,7 @@ if __name__ == '__main__':
 
     Sender:Member|User = interaction.user
     Logger.Log(LogLevel.Verbose, f"Scam unban message detected from {Sender} for {targetid}")
-    Result:BanAction = await ScamGuardBot.HandleBanAction(targetid, Sender, ModerationAction.Unban)
+    Result:BanAction = await ScamGuardBot.HandleBanAction(targetid, Sender, ModerationAction.Unban, None, reason)
     ResponseMsg:str = ""
     if (Result is not BanAction.Unbanned):
       if (Result is BanAction.NotExist):

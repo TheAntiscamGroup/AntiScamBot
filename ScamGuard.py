@@ -286,12 +286,15 @@ class ScamGuard(DiscordBot):
       Logger.Log(LogLevel.Log, f"WARN: Unable to publish message to announcement channel {str(ex)}")
 
   ### Ban Handling ###
-  async def HandleBanAction(self, TargetId:int, Sender:Member|User, Action:ModerationAction, ThreadId:int|None=None) -> BanAction:
-    DatabaseAction:BanAction
+  async def HandleBanAction(self, TargetId:int, Sender:Member|User, Action:ModerationAction, ThreadId:int|None=None, Reason:str|None=None) -> BanAction:
+    DatabaseAction:BanAction = BanAction.DBError
+    NewAnnouncement:Embed|None = None
 
     if (Action == ModerationAction.Ban):
       DatabaseAction = self.Database.AddBan(TargetId, Sender.name, Sender.id, ThreadId)
+      NewAnnouncement = await self.CreateBanEmbed(TargetId, True, Reason)
     elif (Action == ModerationAction.Unban):
+      NewAnnouncement = await self.CreateBanEmbed(TargetId, False, Reason)
       DatabaseAction = self.Database.RemoveBan(TargetId)
     else:
       Logger.Log(LogLevel.Error, f"An invalid moderation action was passed to HandleBanAction, {Action}")
@@ -301,18 +304,18 @@ class ScamGuard(DiscordBot):
     if (DatabaseAction not in [BanAction.Banned, BanAction.Unbanned]):
       return DatabaseAction
 
-    # Queue up tasks to fire later
-    self.AddAsyncTask(self.CreateBanAnnouncement(TargetId, Action))
+    # Queue up the announcement
+    if (NewAnnouncement is not None):
+      self.AddAsyncTask(self.CreateBanAnnouncement(NewAnnouncement, Action))
+    # Queue up the action
     self.AddAsyncTask(self.PropagateActionToServers(TargetId, Sender, Action))
 
     return DatabaseAction
 
-  async def CreateBanAnnouncement(self, TargetId:int, ActionTaken:ModerationAction):
-    if ActionTaken is ModerationAction.Ban or ActionTaken is ModerationAction.Unban:
-      # Send a message to the announcement channel
-      NewAnnouncement:Embed = await self.CreateBanEmbed(TargetId)
-      NewAnnouncement.title = f"{str(ActionTaken)} in Progress"
-      await self.PublishAnnouncement(NewAnnouncement)
+  async def CreateBanAnnouncement(self, Announcement:Embed, ActionTaken:ModerationAction):
+    if (ActionTaken is ModerationAction.Ban or ActionTaken is ModerationAction.Unban):
+      self.SetEmbedColorForAction(Announcement, ActionTaken)
+      await self.PublishAnnouncement(Announcement)
 
   async def ReprocessBansForInstance(self, InstanceID:int, LastActions:int):
     if (InstanceID == self.BotID):

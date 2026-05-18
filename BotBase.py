@@ -700,7 +700,7 @@ Failed Copied Evidence Links:
     ResponseEmbed.set_footer(text=Messages["first_time"]["footer"])
     return ResponseEmbed
 
-  async def CreateBanEmbed(self, TargetId:int) -> discord.Embed:
+  async def CreateBanEmbed(self, TargetId:int, ShowStatus:bool=True, Reason:str|None=None) -> discord.Embed:
     BanData = self.Database.GetBanInfo(TargetId)
     UserBanned:bool = (BanData is not None)
     User = await self.LookupUser(TargetId)
@@ -714,13 +714,17 @@ Failed Copied Evidence Links:
       if (ConfigData["ScamCheckShowsSharedServers"]):
         UserData.add_field(name="Shared Servers", value=f"~{len(User.mutual_guilds)}")
 
-      # If currently banned and has an evidence thread, display it.
+      # If we have an evidence thread, display it.
       if (UserBanned and BanData.evidence_thread is not None):
         UserData.add_field(name="Evidence (TAG Server)", value=f"<#{BanData.evidence_thread}>", inline=False)
       UserData.add_field(name="Account Created", value=f"{discord.utils.format_dt(User.created_at)}", inline=False)
+      # Show the reason
+      if (Reason is not None):
+        UserData.add_field(name="Reason", value=Reason, inline=False)
       UserData.set_thumbnail(url=User.display_avatar.url)
 
-    UserData.add_field(name="Banned Status", value=f"{UserBanned}")
+    if (ShowStatus):
+      UserData.add_field(name="Banned Status", value=f"{UserBanned}")
 
     # Figure out who banned them
     if (UserBanned):
@@ -739,6 +743,12 @@ Failed Copied Evidence Links:
 
     UserData.set_footer(text=f"User ID: {TargetId}")
     return UserData
+
+  def SetEmbedColorForAction(self, NewEmbed:Embed, Action:ModerationAction):
+    if (Action is ModerationAction.Ban):
+      NewEmbed.colour = discord.Colour.red()
+    elif (Action is ModerationAction.Unban):
+      NewEmbed.colour = discord.Colour.green()
 
   ### Ban Handling ###
   async def ReprocessBans(self, ServerId:int, LastActions:int=0, HandlingCooldown:bool=False) -> BanResult:
