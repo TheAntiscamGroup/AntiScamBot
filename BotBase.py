@@ -744,7 +744,12 @@ Failed Copied Evidence Links:
     UserData.set_footer(text=f"User ID: {TargetId}")
     return UserData
 
-  def SetEmbedColorForAction(self, NewEmbed:discord.Embed, Action:ModerationAction):
+  def UpdateEmbedForPublish(self, NewEmbed:discord.Embed, Action:ModerationAction):
+    if (Action is not ModerationAction.Ban and Action is not ModerationAction.Unban):
+      return
+
+    ActionStr:str = Messages["general"]["in_progress"]
+    NewEmbed.title = f"{(str(Action))} {ActionStr}"
     if (Action is ModerationAction.Ban):
       NewEmbed.colour = discord.Colour.red()
     elif (Action is ModerationAction.Unban):

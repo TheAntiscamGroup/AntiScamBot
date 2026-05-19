@@ -314,7 +314,7 @@ class ScamGuard(DiscordBot):
 
   async def CreateBanAnnouncement(self, Announcement:Embed, ActionTaken:ModerationAction):
     if (ActionTaken is ModerationAction.Ban or ActionTaken is ModerationAction.Unban):
-      self.SetEmbedColorForAction(Announcement, ActionTaken)
+      self.UpdateEmbedForPublish(Announcement, ActionTaken)
       await self.PublishAnnouncement(Announcement)
 
   async def ReprocessBansForInstance(self, InstanceID:int, LastActions:int):

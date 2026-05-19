@@ -2,6 +2,9 @@
 # Progress Left:
 # * ConfirmBanview (not really needed)
 
+[general]
+in_progress = "in Progress"
+
 [activity]
 default = "Destroying Scammers"
 development = "In Development"
