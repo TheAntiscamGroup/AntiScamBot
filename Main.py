@@ -190,8 +190,8 @@ if __name__ == '__main__':
 
   @ScamGuardBot.Commands.command(name="scamban", description="Bans a scammer", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["ApproverRole"])
-  @app_commands.describe(targetid='The discord id for the user to ban')
-  async def ScamBan(interaction:Interaction, targetid:app_commands.Transform[int, TargetIdTransformer]):
+  @app_commands.describe(targetid='The discord id for the user to ban', reason='Optional reason, necessary for impersonation and hacks')
+  async def ScamBan(interaction:Interaction, targetid:app_commands.Transform[int, TargetIdTransformer], reason:Optional[str]=None):
     if (targetid <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
@@ -201,7 +201,7 @@ if __name__ == '__main__':
     # Check to see if the ban already exists
     if (not ScamGuardBot.Database.DoesBanExist(targetid)):
       BanEmbed:Embed = await ScamGuardBot.CreateBanEmbed(targetid)
-      BanView:ConfirmBan = ConfirmBan(targetid, ScamGuardBot)
+      BanView:ConfirmBan = ConfirmBan(targetid, ScamGuardBot, reason)
       await interaction.response.defer(ephemeral=True, thinking=True)
       await BanView.Send(interaction, [BanEmbed])
     else:

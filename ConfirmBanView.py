@@ -10,12 +10,14 @@ ConfigData:Config = Config()
 
 class ConfirmBan(SelfDeletingView):
   TargetId:int = 0
+  TargetReason:str|None = None
   BotInstance = None
 
-  def __init__(self, target:int, bot):
+  def __init__(self, target:int, bot, reason:str|None=None):
     super().__init__(ViewTimeout=90.0)
     self.TargetId = target
     self.BotInstance = bot
+    self.TargetReason = reason
 
   async def on_cancel(self, interaction:Interaction):
     await interaction.response.send_message("This action was cancelled.", ephemeral=True, delete_after=10.0)
@@ -63,7 +65,8 @@ class ConfirmBan(SelfDeletingView):
 
     await interaction.response.defer(thinking=True)
     self.HasInteracted = True
-    Result:BanAction = await self.BotInstance.HandleBanAction(self.TargetId, Sender, ModerationAction.Ban, interaction.channel_id)
+    Result:BanAction = await self.BotInstance.HandleBanAction(self.TargetId, Sender, ModerationAction.Ban,
+                            interaction.channel_id, self.TargetReason)
     if (Result is not BanAction.Banned):
       if (Result == BanAction.Duplicate):
         ResponseMsg = f"{self.TargetId} already exists in the ban database"
