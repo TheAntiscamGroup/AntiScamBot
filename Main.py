@@ -200,7 +200,7 @@ if __name__ == '__main__':
     Logger.Log(LogLevel.Verbose, f"Scamban message detected from {Sender} for {targetid}")
     # Check to see if the ban already exists
     if (not ScamGuardBot.Database.DoesBanExist(targetid)):
-      BanEmbed:Embed = await ScamGuardBot.CreateBanEmbed(targetid)
+      BanEmbed:Embed = await ScamGuardBot.CreateBanEmbed(targetid, True, reason)
       BanView:ConfirmBan = ConfirmBan(targetid, ScamGuardBot, reason)
       await interaction.response.defer(ephemeral=True, thinking=True)
       await BanView.Send(interaction, [BanEmbed])
