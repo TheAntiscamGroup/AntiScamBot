@@ -134,7 +134,7 @@ class ServerActivationApproval(SelfDeletingView):
       Logger.Log(LogLevel.Error, f"Could not resolve the channel {self.Payload.GetMessageID()} for server {ServerIDStr} to post activation deny message in")
       return
 
-    # Do not send a message if the server admins sent the activation command a few times alread and was approved.
+    # Do not send a message if the server admins sent the activation command a few times already and was approved.
     if (not Bot.Database.IsActivatedInServer(ServerID)): # pyright: ignore[reportAttributeAccessIssue]
       await DiscordChannel.send(Messages["setup"]["activation_error"])
 
@@ -143,7 +143,7 @@ class ServerActivationApproval(SelfDeletingView):
   @ui.button(label="Forbid Forever", style=ButtonStyle.danger, row=4)
   async def forbid_activation(self, interaction:Interaction, button:ui.Button):
     self.HasInteracted = True
-    ServerID: int = self.Payload.GetServerID()
+    ServerID:int = self.Payload.GetServerID()
     Bot = interaction.client
     ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
 
@@ -158,5 +158,9 @@ class ServerActivationApproval(SelfDeletingView):
   async def on_cancel(self, interaction:Interaction):
     self.HasInteracted = True
     Bot = interaction.client
+    # Do not post anything else if the bot was already activated in the server, just delete and move on.
+    if (Bot.Database.IsActivatedInServer(self.Payload.GetServerID())): # pyright: ignore[reportAttributeAccessIssue]
+      return
+
     ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
     await interaction.response.send_message(f"Activation skipped for server {ServerIDStr}.")
