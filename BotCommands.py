@@ -81,6 +81,7 @@ class GlobalScamCommands(app_commands.Group):
     # Check if the user is already banned
     if (self.GetInstance().Database.DoesBanExist(UserToSend.id)):
       await interaction.response.send_message(Messages["cmds_error"]["already_banned"], ephemeral=True, delete_after=20.0)
+      return
 
     await interaction.response.send_modal(SubmitScamReport(UserToSend))
 
@@ -108,14 +109,14 @@ class GlobalScamCommands(app_commands.Group):
   @app_commands.checks.cooldown(1, 2.0)
   async def InstallScamGuardUser_Global(self, interaction:Interaction, whisper:bool):
     # Always be a whisper unless you are an admin/mod
-    ShouldEphermeral:bool = True
+    MakeWhisper:bool = True
     # Was this in a server
     if (interaction.guild_id is not None and interaction.channel is not None):
       # Check to see if a moderator typed this command
       if (interaction.channel.permissions_for(cast(Member, interaction.user)).ban_members):
-        ShouldEphermeral = whisper
+        MakeWhisper = whisper
 
-    await interaction.response.send_message("https://discord.com/oauth2/authorize?client_id=1443130827662823557", delete_after=10.0, ephemeral=ShouldEphermeral)
+    await interaction.response.send_message("https://discord.com/oauth2/authorize?client_id=1443130827662823557", delete_after=10.0, ephemeral=MakeWhisper)
 
   @app_commands.command(name="config", description="Set ScamGuard Settings")
   @app_commands.checks.has_permissions(ban_members=True)
