@@ -135,7 +135,8 @@ if __name__ == '__main__':
 
   @ScamGuardBot.Commands.command(name="print", description="Print stats and information about all bots in the server", guild=CommandControlServer)
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
-  async def PrintServers(interaction:Interaction, exhausted_only:bool):
+  @app_commands.describe(exhausted_only='Only print servers in the exhausted state', deactivated_only='Print only deactivated servers')
+  async def PrintServers(interaction:Interaction, exhausted_only:bool, deactivated_only:bool=False):
     ReplyStr:str = ""
     ActivatedStr:str = ""
     RowNum:int = 1
@@ -149,7 +150,7 @@ if __name__ == '__main__':
       ReplyStr = "I am in the following servers:\n"
 
       # Format all servers that we know
-      QueryResults = ScamGuardBot.Database.GetAllServers()
+      QueryResults = ScamGuardBot.Database.GetAllDeactivatedServers() if deactivated_only else ScamGuardBot.Database.GetAllServers()
       for BotServers in QueryResults:
         IsActivated:bool = bool(BotServers.activation_state)
         ReplyStr += f"#{RowNum}: Inst {BotServers.bot_instance_id}, Server {BotServers.discord_server_id}, Owner {BotServers.owner_discord_user_id}, Activated {str(IsActivated)}\n"
