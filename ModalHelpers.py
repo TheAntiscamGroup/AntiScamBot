@@ -93,9 +93,13 @@ class ModChannelSelector(ui.ChannelSelect):
     if (interaction is None or interaction.is_expired()):
       return False
 
-    if (not self.values and self.min_values > 0):
-      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["needs_value"])
-      return False
+    if (not self.values):
+      if (self.min_values > 0):
+        await SendInteractionMessage(interaction, Messages["selector"]["mod"]["needs_value"])
+        return False
+      else:
+        # if there are no values, and this field is left blank then this is optional.
+        return True
 
     ChannelToHookInto:TextChannel|None = cast(TextChannel|None, self.values[0].resolve())
     if (ChannelToHookInto is None):
