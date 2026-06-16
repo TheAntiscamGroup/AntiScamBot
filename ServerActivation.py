@@ -94,6 +94,7 @@ class ScamGuardServerSetup():
     if (Payload.InteractiveUser is not None):
       RequestEmbed.add_field(name="Requestor", value=f"`{Payload.InteractiveUser.display_name}`")
       RequestEmbed.add_field(name="Requestor Handle", value=Payload.InteractiveUser.mention)
+      RequestEmbed.add_field(name="Requestor ID", value=f"`{Payload.GetUserID()}`")
     RequestEmbed.add_field(name="Num Members", value=RequestServer.member_count, inline=False)
     if (RequestServer.icon is not None):
       RequestEmbed.set_thumbnail(url=RequestServer.icon.url)
