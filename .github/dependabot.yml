@@ -1,20 +1,24 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
+registries:
+  python:
+    type: "python-index"
+    url: "https://pypi.python.org/simple/"
+    username: ${{secrets.GH_DUMMY_USERNAME}}
+    password: ${{secrets.GH_DUMMY_PASSWORD}}
+    replaces-base: true
 updates:
   - package-ecosystem: "pip" # See documentation for possible values
     directory: "/" # Location of package manifests
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     schedule:
       interval: "weekly"
+    registries:
+      - python
+    insecure-external-code-execution: allow
     cooldown:
       default-days: 7
       semver-major-days: 30
       semver-minor-days: 12
-      semver-patch-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
