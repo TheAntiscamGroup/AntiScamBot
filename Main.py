@@ -221,7 +221,7 @@ if __name__ == '__main__':
 
     Sender:Member|User = interaction.user
     Logger.Log(LogLevel.Verbose, f"Scam unban message detected from {Sender} for {targetid}")
-    Result:BanAction = await ScamGuardBot.HandleBanAction(targetid, Sender, ModerationAction.Unban, None, reason)
+    Result:BanAction = await ScamGuardBot.HandleBanAction(targetid, Sender, ModerationAction.Unban, ThreadId=None, Reason=reason)
     ResponseMsg:str = ""
     QuietedMsg:bool = True
     if (Result is not BanAction.Unbanned):

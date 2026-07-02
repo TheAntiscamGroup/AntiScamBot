@@ -195,12 +195,13 @@ class RelayClient:
       self.Connection.close()
       self.Connection = None
 
-  def GenerateMessage(self, Type:RelayMessageType, Destination:int=-1, TargetServer:int=-1,
-                      HandlingCooldown:bool=False, TargetUserId:int=-1, NumToRetry=-1, AuthName:str="") -> RelayMessage:
+  def GenerateMessage(self, Type:RelayMessageType, *, Destination:int=-1, TargetServer:int=-1,
+                      HandlingCooldown:bool=False, TargetUserId:int=-1, NumToRetry=-1, AuthName:str="", Reason:str|None=None) -> RelayMessage:
     DataPayload={}
     match Type:
       case RelayMessageType.BanUser | RelayMessageType.UnbanUser | RelayMessageType.Kick:
-        DataPayload={"TargetUser": TargetUserId, "AuthName": AuthName}
+        ReasonWrap = Reason if Reason is not None else ""
+        DataPayload={"TargetUser": TargetUserId, "AuthName": AuthName, "Reason": ReasonWrap}
       case RelayMessageType.ProcessServerActivation:
         DataPayload={"TargetUser": TargetUserId, "TargetServer": TargetServer}
       case RelayMessageType.LeaveServer:
@@ -230,21 +231,20 @@ class RelayClient:
     self.Connection.send(NewMessage)
     self.SentHello = True
 
-  # TODO: Make these functions automatically generated.
-  def SendBan(self, UserId:int, InAuthName:str):
+  def SendBan(self, UserId:int, InAuthName:str, InReason:str|None=None):
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
-    self.Connection.send(self.GenerateMessage(RelayMessageType.BanUser, TargetUserId=UserId, AuthName=InAuthName))
+    self.Connection.send(self.GenerateMessage(RelayMessageType.BanUser, TargetUserId=UserId, AuthName=InAuthName, Reason=InReason))
 
-  def SendKick(self, UserId:int, InAuthName:str):
+  def SendKick(self, UserId:int, InAuthName:str, InReason:str|None=None):
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
-    self.Connection.send(self.GenerateMessage(RelayMessageType.Kick, TargetUserId=UserId, AuthName=InAuthName))
+    self.Connection.send(self.GenerateMessage(RelayMessageType.Kick, TargetUserId=UserId, AuthName=InAuthName, Reason=InReason))
 
-  def SendUnban(self, UserId:int, InAuthName:str):
+  def SendUnban(self, UserId:int, InAuthName:str, InReason:str|None=None):
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
-    self.Connection.send(self.GenerateMessage(RelayMessageType.UnbanUser, TargetUserId=UserId, AuthName=InAuthName))
+    self.Connection.send(self.GenerateMessage(RelayMessageType.UnbanUser, TargetUserId=UserId, AuthName=InAuthName, Reason=InReason))
 
   def SendLeaveServer(self, ServerToLeave:int, InstanceId):
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
@@ -271,7 +271,8 @@ class RelayClient:
   def SendActivationForServerInstance(self, UserId, ServerId, InstanceToTarget):
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
-    self.Connection.send(self.GenerateMessage(RelayMessageType.ProcessServerActivation, TargetUserId=UserId, TargetServer=ServerId, Destination=InstanceToTarget))
+    self.Connection.send(self.GenerateMessage(RelayMessageType.ProcessServerActivation, TargetUserId=UserId,
+                                              TargetServer=ServerId, Destination=InstanceToTarget))
 
   async def RecvMessage(self):
     if (self.Connection is None):
@@ -303,7 +304,7 @@ class RelayClient:
       if (RelayedMessage.Data is not None):
         match RelayedMessage.Type:
           case RelayMessageType.BanUser | RelayMessageType.UnbanUser | RelayMessageType.Kick:
-            Arguments = {"TargetId": RelayedMessage.Data["TargetUser"], "AuthName":RelayedMessage.Data["AuthName"]}
+            Arguments = {"TargetId": RelayedMessage.Data["TargetUser"], "AuthName":RelayedMessage.Data["AuthName"], "Reason":RelayedMessage.Data["Reason"]}
           case RelayMessageType.ProcessServerActivation:
             Arguments = {"UserId": RelayedMessage.Data["TargetUser"], "ServerId": RelayedMessage.Data["TargetServer"]}
           case RelayMessageType.LeaveServer:

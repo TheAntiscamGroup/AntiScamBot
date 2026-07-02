@@ -857,7 +857,7 @@ Failed Copied Evidence Links:
       UserId:int = int(Ban.discord_user_id)
       AuthorizerName:str = Ban.assigner_discord_user_name
       BanNumber:int = NumBans + Count
-      await self.ProcessActionOnUser(UserId, AuthorizerName, ModerationAction.Ban, BanNumber)
+      await self.ProcessActionOnUser(UserId, AuthorizerName, ModerationAction.Ban, BanNumOverride=BanNumber)
       Count += 1
 
   def ScheduleReprocessInstance(self, LastActions:int):
@@ -866,17 +866,17 @@ Failed Copied Evidence Links:
   def ScheduleReprocessBans(self, ServerId:int, LastActions:int=0, HandlingCooldown:bool=False):
     self.AddAsyncTask(self.ReprocessBans(ServerId, LastActions, HandlingCooldown))
 
-  def KickUser(self, TargetId:int, AuthName:str):
-    self.AddAsyncTask(self.ProcessActionOnUser(TargetId, AuthName, ModerationAction.Kick))
+  def KickUser(self, TargetId:int, AuthName:str, Reason:str|None=None):
+    self.AddAsyncTask(self.ProcessActionOnUser(TargetId, AuthName, ModerationAction.Kick, Reason=Reason))
 
-  def BanUser(self, TargetId:int, AuthName:str):
-    self.AddAsyncTask(self.ProcessActionOnUser(TargetId, AuthName, ModerationAction.Ban))
+  def BanUser(self, TargetId:int, AuthName:str, Reason:str|None=None):
+    self.AddAsyncTask(self.ProcessActionOnUser(TargetId, AuthName, ModerationAction.Ban, Reason=Reason))
 
-  def UnbanUser(self, TargetId:int, AuthName:str):
-    self.AddAsyncTask(self.ProcessActionOnUser(TargetId, AuthName, ModerationAction.Unban))
+  def UnbanUser(self, TargetId:int, AuthName:str, Reason:str|None=None):
+    self.AddAsyncTask(self.ProcessActionOnUser(TargetId, AuthName, ModerationAction.Unban, Reason=Reason))
 
   # Handles pushing the ban/unban to every server we are in
-  async def ProcessActionOnUser(self, TargetId:int, AuthorizerName:str, Action:ModerationAction, BanNumOverride:int=-1):
+  async def ProcessActionOnUser(self, TargetId:int, AuthorizerName:str, Action:ModerationAction, *, BanNumOverride:int=-1, Reason:str|None=None):
     NumServersPerformed:int = 0
     ActionsAppliedThisLoop:int = 0
     DoesSleep:bool = ConfigData["UseSleep"]
@@ -884,7 +884,8 @@ Failed Copied Evidence Links:
     BanNumber:int = self.Database.GetNumBans() if BanNumOverride == -1 else BanNumOverride
     UserToWorkOn:discord.User = cast(discord.User, discord.Object(TargetId))
 
-    BanReason=f"Confirmed {str(Action)} by {AuthorizerName}"
+    ReasonStr:str = f" - {Reason}" if Reason is not None else ""
+    BanReason=f"Confirmed {str(Action)} by {AuthorizerName}{ReasonStr}"
     AllServers = self.Database.GetAllActivatedServersForAction(self.BotID, Action)
     NumServers:int = len(AllServers)
 

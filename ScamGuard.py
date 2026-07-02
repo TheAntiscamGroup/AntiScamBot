@@ -286,7 +286,7 @@ class ScamGuard(DiscordBot):
       Logger.Log(LogLevel.Log, f"WARN: Unable to publish message to announcement channel {str(ex)}")
 
   ### Ban Handling ###
-  async def HandleBanAction(self, TargetId:int, Sender:Member|User, Action:ModerationAction, ThreadId:int|None=None, Reason:str|None=None) -> BanAction:
+  async def HandleBanAction(self, TargetId:int, Sender:Member|User, Action:ModerationAction, *, ThreadId:int|None, Reason:str|None) -> BanAction:
     DatabaseAction:BanAction = BanAction.DBError
     NewAnnouncement:Embed|None = None
 
@@ -308,7 +308,7 @@ class ScamGuard(DiscordBot):
     if (NewAnnouncement is not None):
       self.AddAsyncTask(self.CreateBanAnnouncement(NewAnnouncement, Action))
     # Queue up the action
-    self.AddAsyncTask(self.PropagateActionToServers(TargetId, Sender, Action))
+    self.AddAsyncTask(self.PropagateActionToServers(TargetId, Sender, Action, Reason))
 
     return DatabaseAction
 
@@ -334,13 +334,13 @@ class ScamGuard(DiscordBot):
                                            InNumToRetry=LastActions, InHandlingCooldown=HandlingCooldown)
       return BanResult.Processed
 
-  async def PropagateActionToServers(self, TargetId:int, Sender:Member|User, Action:ModerationAction):
+  async def PropagateActionToServers(self, TargetId:int, Sender:Member|User, Action:ModerationAction, Reason:str|None=None):
     SenderName:str = Sender.name
     if (Action == ModerationAction.Ban):
-      self.ClientHandler.SendBan(TargetId, SenderName)
+      self.ClientHandler.SendBan(TargetId, SenderName, Reason)
     elif (Action == ModerationAction.Unban):
-      self.ClientHandler.SendUnban(TargetId, SenderName)
+      self.ClientHandler.SendUnban(TargetId, SenderName, Reason)
     elif (Action == ModerationAction.Kick):
-      self.ClientHandler.SendKick(TargetId, SenderName)
+      self.ClientHandler.SendKick(TargetId, SenderName, Reason)
 
-    await self.ProcessActionOnUser(TargetId, SenderName, Action)
+    await self.ProcessActionOnUser(TargetId, AuthorizerName=SenderName, Action=Action, Reason=Reason)

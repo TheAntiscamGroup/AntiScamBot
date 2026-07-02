@@ -66,7 +66,7 @@ class ConfirmBan(SelfDeletingView):
     await interaction.response.defer(thinking=True)
     self.HasInteracted = True
     Result:BanAction = await self.BotInstance.HandleBanAction(self.TargetId, Sender, ModerationAction.Ban,
-                            interaction.channel_id, self.TargetReason)
+                            ThreadId=interaction.channel_id, Reason=self.TargetReason)
     if (Result is not BanAction.Banned):
       if (Result == BanAction.Duplicate):
         ResponseMsg = f"{self.TargetId} already exists in the ban database"
