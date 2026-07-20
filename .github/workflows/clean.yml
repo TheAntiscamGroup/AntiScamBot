@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Clean GH Actions
         id: clean
-        uses: socksthewolf/gh-actions-clean-workflow@main
+        uses: igorjs/gh-actions-clean-workflow@5fa2e3a4fdd40e3e7098645a0b8df08624352e5e
         with:
           token: ${{ secrets.CLEANER_TOKEN }}
           runs_older_than: 2
