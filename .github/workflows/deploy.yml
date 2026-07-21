@@ -13,93 +13,26 @@ on:
 
 # Prevent multiple instances of this action from running at once
 concurrency:
-  group: "botdeploy"
+  group: "deploy"
   cancel-in-progress: false
 
+permissions:
+  deployments: write
+  contents: read
+
 jobs:
-  cleanup:
+  check_prod:
     runs-on: ubuntu-latest
-    permissions: write-all
-    continue-on-error: true
     steps:
       # Error out if not prod
       - name: Verify Branch is Prod
         if: github.ref != 'refs/heads/prod'
         run: exit 1
-      # Otherwise clean deployments
-      - name: Cleanup Previous Deployments
-        uses: strumwolf/delete-deployment-environment@035f6d27c8b8951729f4d71b2d3d6a7975139476
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          environment: production
-          onlyRemoveDeployments: true
 
   deploy:
-    environment: production
-    permissions:
-      contents: read
-      actions: read
-      statuses: read
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout files
-      uses: actions/checkout@v7.0.0
-      with:
-        ref: ${{ github.ref }}
-
-    - name: Dependency Update Check
-      uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706
-      id: filter
-      with:
-        base: ${{ github.ref }}
-        filters: |
-          deps_update_needed:
-            - 'requirements.txt'
-            - '.runtime/update.sh'
-          core_updated:
-            - '**.py'
-            - 'config.json'
-            - 'TextStrings.toml'
-
-    - name: Configure SSH
-      run: |
-        mkdir -p ~/.ssh/
-        echo "$SSH_KEY" > ~/.ssh/staging.key
-        chmod 600 ~/.ssh/staging.key
-        cat >>~/.ssh/config <<END
-        Host staging
-          HostName $SSH_HOST
-          User $SSH_USER
-          IdentityFile ~/.ssh/staging.key
-          StrictHostKeyChecking no
-        END
-      env:
-        SSH_HOST: ${{ secrets.SSH_HOST }}
-        SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        SSH_USER: ${{ secrets.SSH_USERNAME }}
-
-    # If any runtime files updated, then we need to stop all bot instances.
-    - name: Kill Running Instances
-      id: kill_bot
-      continue-on-error: true
-      if: steps.filter.outputs.deps_update_needed == 'true' || steps.filter.outputs.core_updated == 'true' || inputs.restart_bot == 'true'
-      run: ssh staging 'cd ~/project/AntiScamBot && .runtime/kill.sh'
-
-    # We want to update the project regardless.
-    - name: Sync Project
-      run: ssh staging 'cd ~/project/AntiScamBot && .runtime/pull.sh'
-
-    - name: Update Python Dependencies
-      id: deps_update
-      if: steps.filter.outputs.deps_update_needed == 'true'
-      continue-on-error: false
-      run: ssh staging 'set -e && cd ~/project/AntiScamBot && .runtime/update.sh'
-
-    - name: Restart Instances
-      if: ${{ always() && (steps.deps_update.conclusion == 'success' || steps.deps_update.outcome == 'skipped') && steps.kill_bot.conclusion == 'success' }}
-      run: ssh staging 'cd ~/project/AntiScamBot && .runtime/run.sh -d'
-
-    # Remove the key once done
-    - name: Kill SSH Add
-      if: ${{ always() }}
-      run: rm -f ~/.ssh/staging.key
+    uses: theantiscamgroup/workflows/.github/workflows/deploy_bot.yml@main
+    secrets: inherit
+    with:
+      ref: ${{ github.ref }}
+      path: "~/project/AntiScamBot"
+      force_restart: ${{ inputs.restart_bot }}
