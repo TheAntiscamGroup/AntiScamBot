@@ -1,9 +1,15 @@
+from collections.abc import Sequence
 from discord import ui, Interaction, SelectOption, Guild, WebhookMessage, ButtonStyle
-from discord import Message, Role, TextChannel, ChannelType, Member, Permissions
+from discord import Message, Role, TextChannel, ChannelType, Embed, Member, Permissions
 from Logger import Logger, LogLevel
 from TextWrapper import TextLibrary
-from typing import cast
+from typing import cast, override, TYPE_CHECKING
 import traceback
+
+if TYPE_CHECKING:
+  from BotBase import DiscordBot
+  from discord.ui.view import BaseView
+  from Types import ViewButton
 
 Messages:TextLibrary = TextLibrary()
 
@@ -12,15 +18,16 @@ async def SendInteractionMessage(interaction: Interaction, message:str, delete_a
     ReturnMessage:WebhookMessage = await interaction.followup.send(message, ephemeral=True, silent=is_silent, wait=True)
     # Delete the message after a certain amount of time
     if (delete_after > 0.0):
-      interaction.client.AddAsyncTask(interaction.client.DeleteFutureMessage(ReturnMessage, delete_after)) # pyright: ignore[reportAttributeAccessIssue]
+      ClientInst: DiscordBot = cast(DiscordBot, interaction.client)
+      ClientInst.AddAsyncTask(ClientInst.DeleteFutureMessage(ReturnMessage, delete_after))
   else:
     await interaction.response.send_message(message, ephemeral=True, delete_after=delete_after, silent=is_silent)
 
-class YesNoSelector(ui.Select):
+class YesNoSelector(ui.Select[BaseView]):
   CurrentSelection:str = ""
   CachedValue:str = ""
 
-  def __init__(self, RowPos=None):
+  def __init__(self, RowPos:int|None=None):
     options = [
       SelectOption(label="Yes", description=self.GetYesDescription(), emoji="🟩"),
       SelectOption(label="No", description=self.GetNoDescription(),  emoji="🟥")
@@ -47,16 +54,17 @@ class YesNoSelector(ui.Select):
       else:
         return False
 
+  @override
   async def callback(self, interaction:Interaction):
     if not self.values:
       return
 
     self.CurrentSelection = self.values[0]
-    await SendInteractionMessage(interaction, f"{Messages['selector']['new']} {self.GetValue()}", delete_after=0.001, is_silent=True)
+    await SendInteractionMessage(interaction, f"{Messages['selector','new']} {self.GetValue()}", delete_after=0.001, is_silent=True)
 
   def SetRequired(self, NewState:bool):
     if (NewState):
-      self.min_values = 1
+      self.min_values: int = 1
     else:
       self.min_values = 0
 
@@ -67,7 +75,7 @@ class YesNoSelector(ui.Select):
   def SetCurrentValue(self, CurValue:bool):
     self.CurrentSelection = "Yes" if CurValue else "No"
     self.CachedValue = self.CurrentSelection
-    self.placeholder = f"[{Messages['selector']['current']}: {self.CurrentSelection}] {self.GetPlaceholder()}"
+    self.placeholder: str = f"[{Messages['selector','current']}: {self.CurrentSelection}] {self.GetPlaceholder()}"
 
     if (self.SetNotRequiredIfValueSet()):
       self.SetRequired(False)
@@ -85,17 +93,17 @@ class YesNoSelector(ui.Select):
     return False
 
 # An override for channel selectors so that they do not show "This Interaction Failed" inappropriately
-class ModChannelSelector(ui.ChannelSelect):
+class ModChannelSelector(ui.ChannelSelect[BaseView]):
   def __init__(self, RowPos:int|None=None):
-    super().__init__(row=RowPos, min_values=0, max_values=1, channel_types=[ChannelType.text], placeholder=Messages["selector"]["mod"]["placeholder"])
+    super().__init__(row=RowPos, min_values=0, max_values=1, channel_types=[ChannelType.text], placeholder=Messages["selector","mod","placeholder"])
 
-  async def IsValid(self, interaction:Interaction, Silent:bool=False) -> bool:
+  async def IsValid(self, interaction:Interaction|None, Silent:bool=False) -> bool:
     if (interaction is None or interaction.is_expired()):
       return False
 
     if (not self.values):
       if (self.min_values > 0):
-        await SendInteractionMessage(interaction, Messages["selector"]["mod"]["needs_value"])
+        await SendInteractionMessage(interaction, Messages["selector","mod","needs_value"])
         return False
       else:
         # if there are no values, and this field is left blank then this is optional.
@@ -103,32 +111,33 @@ class ModChannelSelector(ui.ChannelSelect):
 
     ChannelToHookInto:TextChannel|None = cast(TextChannel|None, self.values[0].resolve())
     if (ChannelToHookInto is None):
-      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["needs_perms"])
+      await SendInteractionMessage(interaction, Messages["selector","mod","needs_perms"])
       return False
 
     # Check channel permissions to see if we can post in there.
     BotMember:Member|None = interaction.guild.get_member(interaction.client.user.id) # pyright: ignore[reportOptionalMemberAccess]
     if (BotMember is None):
-      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["discord_slow"])
+      await SendInteractionMessage(interaction, Messages["selector","mod","discord_slow"])
       return False
 
     PermissionsObj:Permissions = ChannelToHookInto.permissions_for(BotMember)
     MentionStr:str = ChannelToHookInto.mention
     if (not PermissionsObj.send_messages):
       BotRoleName:str = cast(Role, cast(Guild, interaction.guild).self_role).name
-      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["failure"].format(mention=MentionStr, role=BotRoleName))
+      await SendInteractionMessage(interaction, Messages["selector","mod","failure"].format(mention=MentionStr, role=BotRoleName))
       return False
 
     if (not Silent):
-      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["channel_set"].format(mention=MentionStr), delete_after=1.0, is_silent=True)
+      await SendInteractionMessage(interaction, Messages["selector","mod","channel_set"].format(mention=MentionStr), delete_after=1.0, is_silent=True)
 
     return True
 
+  @override
   async def callback(self, interaction:Interaction):
     await self.IsValid(interaction, False)
 
   def SetRequired(self):
-    self.min_values = 1
+    self.min_values: int = 1
 
 # This is an UI view that will allow for deletion after interaction.
 class SelfDeletingView(ui.View):
@@ -140,19 +149,21 @@ class SelfDeletingView(ui.View):
   def __init__(self, ViewTimeout:float|None=180):
      super().__init__(timeout=ViewTimeout)
 
+  @override
   async def on_timeout(self):
     # prevent last second interactions...
     self.HasInteracted = True
     await self.StopInteractions()
 
-  async def on_error(self, interaction:Interaction, error:Exception, object:ui.Item):
+  @override
+  async def on_error(self, interaction:Interaction, error:Exception, object: ViewButton) -> None:
     Logger.Log(LogLevel.Error, f"View interaction encountered an error {str(error)} ```{traceback.format_exc(limit=3)}```")
 
-  async def on_cancel(self, interaction:Interaction):
+  async def on_cancel(self, _:Interaction):
     pass
 
   @ui.button(label="Cancel", style=ButtonStyle.gray, row=4)
-  async def cancel(self, interaction:Interaction, button:ui.Button):
+  async def cancel(self, interaction:Interaction, button: ViewButton):  # pyright: ignore[reportUnusedParameter]
     if (self.HasInteracted):
       return
 
@@ -160,7 +171,7 @@ class SelfDeletingView(ui.View):
     await self.on_cancel(interaction)
     await self.StopInteractions()
 
-  async def StopInteractions(self):
+  async def StopInteractions(self) -> None:
     # Remove the original message, which is the embed
     if (self.Hook is not None):
       await self.Hook.delete()
@@ -170,13 +181,13 @@ class SelfDeletingView(ui.View):
     # Stop processing this interaction further.
     self.stop()
 
-  async def Send(self, interaction:Interaction, embedlist):
+  async def Send(self, interaction:Interaction, embedlist: Sequence[Embed]) -> None:
     if (self.Hook is not None):
       return
 
     self.Hook = await interaction.followup.send(embeds=embedlist, view=self, wait=True, ephemeral=True)
 
-  async def SendToChannel(self, channel:TextChannel, embedlist):
+  async def SendToChannel(self, channel:TextChannel, embedlist: Sequence[Embed]):
     if (self.Hook is not None):
       return
 

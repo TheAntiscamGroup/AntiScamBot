@@ -232,7 +232,7 @@ class ScamGuard(DiscordBot):
     self.HasStartedInstances = True
 
   async def StartInstance(self, InstanceID:int):
-    RelayFileHandleLocation = self.ServerHandler.GetFileLocation()
+    RelayFileHandleLocation: str = self.ServerHandler.GetFileLocation()
     if (InstanceID == 0):
       self.ClientHandler = None # pyright: ignore[reportAttributeAccessIssue]
       self.SetupClientConnection(RelayFileHandleLocation)

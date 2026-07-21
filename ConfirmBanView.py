@@ -4,21 +4,25 @@ from BotEnums import BanAction, ModerationAction
 from discord import ui, ButtonStyle, Interaction, Member, User, ForumTag, Thread, ForumChannel
 from ModalHelpers import SelfDeletingView
 from Config import Config
-from typing import cast
+from typing import cast, override, TYPE_CHECKING
 
 ConfigData:Config = Config()
+
+if TYPE_CHECKING:
+  from Types import ViewButton, ValidBot
 
 class ConfirmBan(SelfDeletingView):
   TargetId:int = 0
   TargetReason:str|None = None
-  BotInstance = None
+  BotInstance: ValidBot
 
-  def __init__(self, target:int, bot, reason:str|None=None):
+  def __init__(self, target:int, bot: ValidBot, reason:str|None=None):
     super().__init__(ViewTimeout=90.0)
     self.TargetId = target
     self.BotInstance = bot
     self.TargetReason = reason
 
+  @override
   async def on_cancel(self, interaction:Interaction):
     await interaction.response.send_message("This action was cancelled.", ephemeral=True, delete_after=10.0)
 
@@ -52,20 +56,17 @@ class ConfirmBan(SelfDeletingView):
       Logger.Log(LogLevel.Warn, f"Could not set the handled tag in {thread.id} {str(ex)}")
 
   @ui.button(label="Confirm Ban", style=ButtonStyle.danger, row=4)
-  async def confirm(self, interaction: Interaction, button: ui.Button):
+  async def confirm(self, interaction: Interaction, button: ViewButton):  # pyright: ignore[reportUnusedParameter]
     # Prevent pressing the button multiple times during asynchronous action.
     if (self.HasInteracted):
       return
 
     Sender:Member|User = interaction.user
     ResponseMsg:str = ""
-    if (self.BotInstance is None):
-      Logger.Log(LogLevel.Error, "ConfirmBan view has an invalid bot reference!!")
-      return
 
     await interaction.response.defer(thinking=True)
-    self.HasInteracted = True
-    Result:BanAction = await self.BotInstance.HandleBanAction(self.TargetId, Sender, ModerationAction.Ban,
+    self.HasInteracted: bool = True
+    Result: BanAction = await self.BotInstance.HandleBanAction(self.TargetId, Sender, ModerationAction.Ban,
                             ThreadId=interaction.channel_id, Reason=self.TargetReason)
     if (Result is not BanAction.Banned):
       if (Result == BanAction.Duplicate):

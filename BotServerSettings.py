@@ -4,7 +4,10 @@ from BotDatabaseSchema import Server
 from Logger import Logger, LogLevel
 from TextWrapper import TextLibrary
 from Config import Config
-from typing import cast
+from typing import cast, TYPE_CHECKING
+
+if TYPE_CHECKING:
+  from Types import ViewButton, ValidBot
 
 Messages:TextLibrary = TextLibrary()
 
@@ -40,7 +43,7 @@ class BotSettingsPayload:
 
     return self.MessageChannel.id
 
-  def LoadFromDB(self, BotInstance):
+  def LoadFromDB(self, BotInstance: ValidBot):
     DB = BotInstance.Database
     ServerInfo:Server = DB.GetServerInfo(self.GetServerID())
     if (int(ServerInfo.activation_state) == 0):
@@ -56,26 +59,26 @@ class BotSettingsPayload:
 
 class InstallWebhookSelector(YesNoSelector):
   def GetYesDescription(self) -> str:
-    return Messages["selector"]["webhook"]["yes"]
+    return Messages["selector","webhook","yes"]
 
   def GetNoDescription(self) -> str:
-    return Messages["selector"]["webhook"]["no"]
+    return Messages["selector","webhook","no"]
 
   def GetPlaceholder(self) -> str:
-    return Messages["selector"]["webhook"]["placeholder"]
+    return Messages["selector","webhook","placeholder"]
 
   def SetNotRequiredIfValueSet(self) -> bool:
     return True
 
 class KickSuspiciousUsersSelector(YesNoSelector):
   def GetYesDescription(self) -> str:
-    return Messages["selector"]["kick"]["yes"]
+    return Messages["selector","kick","yes"]
 
   def GetNoDescription(self) -> str:
-    return Messages["selector"]["kick"]["no"]
+    return Messages["selector","kick","no"]
 
   def GetPlaceholder(self) -> str:
-    return Messages["selector"]["kick"]["placeholder"]
+    return Messages["selector","kick","placeholder"]
 
   def SetNotRequiredIfValueSet(self) -> bool:
     return True
@@ -119,7 +122,7 @@ class ServerSettingsView(SelfDeletingView):
     self.CallbackFunction = InCB
 
   @ui.button(label="Confirm Settings", style=ButtonStyle.success, row=4)
-  async def setup(self, interaction: Interaction, button: ui.Button):
+  async def setup(self, interaction: Interaction, button: ViewButton):
     # Couple of quick reference settings
     DB = interaction.client.Database # pyright: ignore[reportAttributeAccessIssue]
     ServerId:int = self.Payload.GetServerID()
@@ -135,7 +138,7 @@ class ServerSettingsView(SelfDeletingView):
       if (MadeWebhookSelection):
         self.Payload.WantsWebhooks = self.WebhookSelector.GetValue() or False
       elif self.WebhookSelector.IsRequired():
-        await interaction.response.send_message(Messages["selector"]["choose"], ephemeral=True, delete_after=10.0)
+        await interaction.response.send_message(Messages["selector","choose"], ephemeral=True, delete_after=10.0)
         return
 
     # Check to see if the channel option has changed. This code specifically will allow it for the user to not change the setting and still
@@ -175,11 +178,11 @@ class ServerSettingsView(SelfDeletingView):
 
           # Check to see if we can manage webhooks in that channel, if the user wants us to add ban notifications
           if (not PermissionsObj.manage_webhooks):
-            await interaction.response.send_message(Messages["selector"]["webhook"]["need_perm"].format(channel=ChannelToHookInto.mention), ephemeral=True, delete_after=100.0)
+            await interaction.response.send_message(Messages["selector","webhook","need_perm"].format(channel=ChannelToHookInto.mention), ephemeral=True, delete_after=100.0)
             return
         else:
           Logger.Log(LogLevel.Warn, "ChannelToHookInto was None, which should not be an accessible area?")
-          await interaction.response.send_message(Messages["selector"]["webhook"]["text_channel"], ephemeral=True, delete_after=20.0)
+          await interaction.response.send_message(Messages["selector","webhook","text_channel"], ephemeral=True, delete_after=20.0)
           return
       # The user wanted webhooks but doesn't want them any more, delete the webhook from the channel.
       elif (self.WebhookSelector.HasValueChanged() and self.Payload.HasMessageChannel()):
@@ -199,9 +202,9 @@ class ServerSettingsView(SelfDeletingView):
     # Respond to the user and kill the interactions
     MessageResponse:str = ""
     if (not interaction.client.Database.IsActivatedInServer(ServerId)): # pyright: ignore[reportAttributeAccessIssue]
-      MessageResponse = Messages["settings"]["set_activation"]
+      MessageResponse = Messages["settings","set_activation"]
     else:
-      MessageResponse = Messages["settings"]["set_settings"]
+      MessageResponse = Messages["settings","set_settings"]
 
     if (not interaction.is_expired()):
       try:

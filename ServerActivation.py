@@ -5,29 +5,35 @@ from Logger import Logger, LogLevel
 from BotServerSettings import ServerSettingsView, BotSettingsPayload
 from ModalHelpers import SelfDeletingView
 from TextWrapper import TextLibrary
-from typing import cast
+from typing import cast, TYPE_CHECKING
+
+if TYPE_CHECKING:
+  from Types import BotType, ValidBot, ViewButton
 
 Messages:TextLibrary = TextLibrary()
 ConfigData:Config = Config()
 
 class ScamGuardServerSetup():
-  BotInstance = None
+  BotInstance: BotType = None
 
-  def __init__(self, Bot) -> None:
+  def __init__(self, Bot: BotType) -> None:
     self.BotInstance = Bot
 
   async def CheckForBotConflicts(self, InServer:None|Guild) -> bool:
     if (InServer is None):
       return False
 
-    BotConflicts = ConfigData["ConflictingBots"]
+    BotConflicts:list[int] = ConfigData["ConflictingBots"]
     for DiscordBotId in BotConflicts:
-      if (await self.BotInstance.LookupMember(DiscordBotId, InServer) is not None): # pyright: ignore[reportOptionalMemberAccess]
+      if (self.BotInstance is None):
+        continue
+
+      if (await self.BotInstance.LookupMember(DiscordBotId, InServer) is not None):
         return True
 
     return False
 
-  async def OpenServerSetupModel(self, interaction:Interaction):
+  async def OpenServerSetupModel(self, interaction:Interaction) -> None:
     if (self.BotInstance is None):
       Logger.Log(LogLevel.Error, "Failed to get the bot instance during ScamGuard setup")
       return
@@ -35,22 +41,23 @@ class ScamGuardServerSetup():
     await interaction.response.defer(ephemeral=True, thinking=True)
     NumBans:int = self.BotInstance.Database.GetNumBans()
 
-    InformationEmbed:Embed = self.BotInstance.CreateBaseEmbed(Messages["setup"]["title"])
-    InformationEmbed.add_field(name=Messages["setup"]["info"]["title"], inline=False, value=Messages["setup"]["info"]["msg"])
-    InformationEmbed.add_field(name=Messages["setup"]["stats"]["title"], inline=False, value=Messages["setup"]["stats"]["msg"].format(number=NumBans))
-    InformationEmbed.add_field(name=Messages["setup"]["report"]["title"], inline=False, value=Messages["setup"]["report"]["msg"])
+    InformationEmbed:Embed = self.BotInstance.CreateBaseEmbed(Messages["setup","title"])
+    InformationEmbed.add_field(name=Messages["setup","info","title"], inline=False, value=Messages["setup","info","msg"])
+    InformationEmbed.add_field(name=Messages["setup","stats","title"], inline=False,
+      value=Messages["setup","stats","msg"].format(number=NumBans))
+    InformationEmbed.add_field(name=Messages["setup","report","title"], inline=False, value=Messages["setup","report","msg"])
     InformationEmbed.add_field(name="", value="", inline=False)
     self.BotInstance.AddSettingsEmbedInfo(InformationEmbed)
     InformationEmbed.add_field(name="", value="", inline=False)
     InformationEmbed.add_field(name="IMPORTANT:", value="", inline=False)
-    InformationEmbed.add_field(name=Messages["setup"]["roles"]["title"], inline=False, value=Messages["setup"]["roles"]["msg"])
+    InformationEmbed.add_field(name=Messages["setup","roles","title"], inline=False, value=Messages["setup","roles","msg"])
 
     # Check to see if quarantine bots are in the server, and warn about it.
     if (await self.CheckForBotConflicts(interaction.guild)):
-      InformationEmbed.add_field(name=Messages["setup"]["conflicts"]["title"], inline=False, value=Messages["setup"]["conflicts"]["msg"])
+      InformationEmbed.add_field(name=Messages["setup","conflicts","title"], inline=False, value=Messages["setup","conflicts","msg"])
 
     InformationEmbed.add_field(name="", value="", inline=False)
-    InformationEmbed.add_field(name=Messages["setup"]["important_links"]["title"], inline=False, value=Messages["setup"]["important_links"]["msg"])
+    InformationEmbed.add_field(name=Messages["setup","important_links","title"], inline=False, value=Messages["setup","important_links","msg"])
     InformationEmbed.set_footer(text="ScamGuard")
 
     NewSetupView:ServerSettingsView = ServerSettingsView(self.SendActivationRequest, interaction)
@@ -65,7 +72,9 @@ class ScamGuardServerSetup():
     ServerInstance:int = self.BotInstance.Database.GetBotIdForServer(ServerID)
     await self.BotInstance.ApplySettings(Payload)
 
-    self.BotInstance.ClientHandler.SendActivationForServerInstance(UserID, ServerID, ServerInstance)
+    if (self.BotInstance.ClientHandler is not None):
+      self.BotInstance.ClientHandler.SendActivationForServerInstance(UserID, ServerID, ServerInstance)
+
     await self.BotInstance.ActivateServerInstance(UserID, ServerID)
 
   async def SendActivationRequest(self, Payload:BotSettingsPayload):
@@ -104,29 +113,30 @@ class ScamGuardServerSetup():
 
 class ServerActivationApproval(SelfDeletingView):
   Parent = None
-  Payload:BotSettingsPayload = None # pyright: ignore[reportAssignmentType]
+  HasInteracted: bool = False
+  Payload: BotSettingsPayload
 
-  def __init__(self, Parent, InPayload:BotSettingsPayload):
+  def __init__(self, Parent, InPayload: BotSettingsPayload):
     self.Parent = Parent
     self.Payload = InPayload
 
     super().__init__(ViewTimeout=None)
 
   @ui.button(label="Approve", style=ButtonStyle.success, row=4)
-  async def setup(self, interaction: Interaction, button: ui.Button):
+  async def setup(self, interaction: Interaction, button: ViewButton):
     self.HasInteracted = True
-    Bot = interaction.client
-    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
+    Bot: ValidBot = interaction.client
+    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
     await interaction.response.send_message(f"Enqueuing activation for server {ServerIDStr}")
     await cast(ScamGuardServerSetup, self.Parent).PushActivation(self.Payload)
     await self.StopInteractions()
 
   @ui.button(label="Deny with Message", style=ButtonStyle.grey, row=4)
-  async def deny_activation(self, interaction:Interaction, button:ui.Button):
+  async def deny_activation(self, interaction:Interaction, button:ViewButton):  # pyright: ignore[reportUnusedParameter]
     self.HasInteracted = True
     ServerID:int = self.Payload.GetServerID()
-    Bot = interaction.client
-    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
+    Bot: ValidBot = interaction.client
+    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
 
     await interaction.response.send_message(f"Activation denied for server {ServerIDStr}.")
 
@@ -136,32 +146,32 @@ class ServerActivationApproval(SelfDeletingView):
       return
 
     # Do not send a message if the server admins sent the activation command a few times already and was approved.
-    if (not Bot.Database.IsActivatedInServer(ServerID)): # pyright: ignore[reportAttributeAccessIssue]
-      await DiscordChannel.send(Messages["setup"]["activation_error"])
+    if (not Bot.Database.IsActivatedInServer(ServerID)):
+      await DiscordChannel.send(Messages["setup","activation_error"])
 
     await self.StopInteractions()
 
   @ui.button(label="Forbid Forever", style=ButtonStyle.danger, row=4)
-  async def forbid_activation(self, interaction:Interaction, button:ui.Button):
+  async def forbid_activation(self, interaction:Interaction, button:ViewButton):
     self.HasInteracted = True
     ServerID:int = self.Payload.GetServerID()
-    Bot = interaction.client
-    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
+    Bot: ValidBot = interaction.client
+    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
 
     await interaction.response.send_message(f"Activation now forbidden for server {ServerIDStr}.")
     # add the server to the forbid list
-    Bot.Database.ForbidServerActivation(ServerID, interaction.user.id) # pyright: ignore[reportAttributeAccessIssue]
+    Bot.Database.ForbidServerActivation(ServerID, interaction.user.id)
     # force leave the server
-    Bot.LeaveServer(ServerID) # pyright: ignore[reportAttributeAccessIssue]
+    Bot.LeaveServer(ServerID)
 
     await self.StopInteractions()
 
   async def on_cancel(self, interaction:Interaction):
     self.HasInteracted = True
-    Bot = interaction.client
+    Bot: ValidBot = interaction.client
     # Do not post anything else if the bot was already activated in the server, just delete and move on.
-    if (Bot.Database.IsActivatedInServer(self.Payload.GetServerID())): # pyright: ignore[reportAttributeAccessIssue]
+    if (Bot.Database.IsActivatedInServer(self.Payload.GetServerID())):
       return
 
-    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
+    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
     await interaction.response.send_message(f"Activation skipped for server {ServerIDStr}.")

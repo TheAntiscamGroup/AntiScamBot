@@ -1,31 +1,34 @@
 # Config singleton for loading configuration data from a json file
 import os, copy, json
+from typing import cast, override
 from dotenv import load_dotenv
 from Logger import LogLevel, Logger
 
 load_dotenv()
 
+type ConfigTypes = float|str|int|bool|list[int]
+type ConfigLookup = dict[str, ConfigTypes]
+type InstanceKeys = dict[str, str]
+
 class Config():
-  __HasLoaded = False
+  __HasLoaded: bool = False
   def __new__(cls):
     if not hasattr(cls, 'instance'):
-      cls.instance = super(Config, cls).__new__(cls)
+      cls.instance: Config = super(Config, cls).__new__(cls)
     return cls.instance
 
-  def __init__(self):
+  def __init__(self) -> None:
     self.Load()
 
-  def Load(self):
+  def Load(self) -> None:
     if (self.__HasLoaded):
       return
 
-    Data = {}
-
     with open(self.GetConfigFile(), "r") as config_file:
-      Data = json.load(config_file)
+      Data: ConfigLookup = cast(ConfigLookup, json.load(config_file))
+      self.__dict__ = Data  # pyright: ignore[reportUnannotatedClassAttribute]
+      self.__HasLoaded = True
 
-    self.__dict__ = Data
-    self.__HasLoaded = True
     Logger.Log(LogLevel.Notice, "Configuration Loaded!")
 
   def Save(self):
@@ -33,23 +36,23 @@ class Config():
     with open(self.GetConfigFile(), "wt") as config_file:
       json.dump(StagingSave, config_file, indent=3)
 
-  def __getitem__(self, item):
-     return self.__dict__[item]
+  def __getitem__(self, item: str) -> ConfigTypes:
+     return self.__dict__[item]  # pyright: ignore[reportAny]
 
-  def IsValid(self, Key:str, ExpectType) -> bool:
+  def IsValid(self, Key:str, ExpectType: type) -> bool:
     try:
-      EntryValue = self[Key]
+      EntryValue: ConfigTypes = self[Key]
       EntryValueType = type(EntryValue)
       if (EntryValueType != ExpectType):
         return False
 
       if (EntryValueType == int):
-        if (EntryValue <= 0):
+        if (cast(int, EntryValue) <= 0):
           return False
         else:
           return True
       elif (EntryValueType == str):
-        if (len(EntryValue) == 0):
+        if (len(cast(str, EntryValue)) == 0):
           return False
 
         return True
@@ -58,27 +61,31 @@ class Config():
       return False
 
   @staticmethod
-  def GetAllSubTokens():
+  def GetAllSubTokens() -> InstanceKeys | None:
     if (not os.path.exists(Config.GetAPIKeysFile())):
-      return {}
+      return None
 
     with open(Config.GetAPIKeysFile(), "r") as crypto_file:
-      return json.load(crypto_file)
+      return cast(InstanceKeys, json.load(crypto_file))
 
   @staticmethod
   def GetToken(ForInstance:int=-1) -> str:
     if (ForInstance <= 0):
       return os.getenv("DISCORD_TOKEN") or ""
     else:
-      CryptoKeys = Config.GetAllSubTokens()
+      CryptoKeys: InstanceKeys|None = Config.GetAllSubTokens()
+      if (CryptoKeys is None):
+        return ""
       InstanceStr:str = str(ForInstance)
-      if (CryptoKeys[InstanceStr] is None):
+      if (InstanceStr not in CryptoKeys):
         return ""
       return CryptoKeys[InstanceStr]
 
   @staticmethod
   def GetNumberOfInstances() -> int:
-    CryptoKeys = Config.GetAllSubTokens()
+    CryptoKeys: InstanceKeys | None = Config.GetAllSubTokens()
+    if (CryptoKeys is None):
+      return 0
     return len(CryptoKeys)
 
   @staticmethod
@@ -109,8 +116,9 @@ class Config():
     else:
       return True
 
-  def __str__(self):
+  @override
+  def __str__(self) -> str:
     return f"{str(self.__dict__)}"
 
-  def Dump(self):
+  def Dump(self) -> None:
     print(self)

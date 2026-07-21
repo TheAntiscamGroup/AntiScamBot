@@ -1,11 +1,17 @@
 # An ipc messaging hub for communicating between different Discord bot instances
 # via multiprocessing
 from Logger import Logger, LogLevel
-from multiprocessing.connection import Listener, Connection, Client, wait
+from multiprocessing.connection import Listener, Connection, Client, PipeConnection, wait
 from BotEnums import RelayMessageType
 from Config import Config
-import selectors, os, traceback
-from typing import cast
+import os, traceback
+from selectors import DefaultSelector, EVENT_READ, SelectorKey
+from typing import Any, cast, TYPE_CHECKING
+
+if TYPE_CHECKING:
+  from BotBase import DiscordBot
+  from ScamGuard import ScamGuard
+  type Connector = Connection | PipeConnection
 
 __all__ = ["RelayMessage", "RelayServer", "RelayClient"]
 
@@ -27,35 +33,35 @@ class RelayMessage:
   # The origin of the message
   # Target client to send to
   # Any additional data
-  def __init__(self, InType:RelayMessageType, InSender:int, InInstance:int=-1, InData=None):
+  def __init__(self, InType: RelayMessageType, InSender: int, InInstance: int=-1, InData=None):
     self.Type = InType
     self.Sender = InSender
     self.Destination = InInstance
-    self.Data = InData
+    self.Data:Any|None = InData
 
   @staticmethod
-  def IsValid(InType) -> bool:
+  def IsValid(InType: Any) -> bool:
     return InType != None and type(InType).__name__ == "RelayMessage"
 
 class RelayServer:
-  Connections=[]
+  Connections: list[Connector]=[]
   # A very dumb way to keep track of error'd connections
-  DeadConnections=[]
-  InstancesToConnections={}
+  DeadConnections: list[Connector]=[]
+  InstancesToConnections: dict[int, Connection]={}
   FileLocation:str = ""
   ShouldStop:bool = False
   HasPrintedStop:bool = False
   ControlBotId:int = -1
-  BotInstance = None
+  BotInstance: ScamGuard|None = None
 
-  def __init__(self, InControlBotId:int, InBotInstance=None):
+  def __init__(self, InControlBotId:int, InBotInstance:ScamGuard|None=None):
     self.ControlBotId = InControlBotId
     self.BotInstance = InBotInstance
     if (UseUnixSockets()):
-      self.ListenSocket = Listener(None, "AF_UNIX", backlog=10)
+      self.ListenSocket: Listener = Listener(None, "AF_UNIX", backlog=10)
       self.FileLocation = self.ListenSocket.address # pyright: ignore[reportAttributeAccessIssue]
     else:
-      NeedsNTHack:bool = False
+      NeedsNTHack: bool = False
       # This is a really dumb hack to get around a bug (allow for address reuse)
       # that should probably be fixed in the multiprocessing listener system.
       # It's been fixed upstream in the main socket library since 2010.
@@ -64,16 +70,16 @@ class RelayServer:
         os.name = "posix"
 
       # Create listener socket.
-      self.ListenSocket = Listener(("localhost", ConfigData["RelayPort"]), "AF_INET", backlog=10)
+      self.ListenSocket: Listener = Listener(("localhost", ConfigData["RelayPort"]), "AF_INET", backlog=10)
 
       # Switch back above hack if we changed it.
       if (NeedsNTHack):
         os.name = "nt"
 
-    self.AcceptListener = selectors.DefaultSelector()
+    self.AcceptListener: DefaultSelector= DefaultSelector()
     # This is probably the silliest thing that doesn't exist in the listener
     # It really should be something accessible in the Listener class (a way to poll)
-    self.AcceptListener.register(self.ListenSocket._listener._socket, selectors.EVENT_READ) # pyright: ignore[reportAttributeAccessIssue]
+    self.AcceptListener.register(self.ListenSocket._listener._socket, EVENT_READ) # pyright: ignore[reportAttributeAccessIssue]
 
   def __del__(self):
     Logger.Log(LogLevel.Debug, "Shutting down listener service")
@@ -82,9 +88,9 @@ class RelayServer:
   def GetFileLocation(self):
     return self.FileLocation
 
-  def GetInstanceForConnection(self, Connection) -> int:
+  def GetInstanceForConnection(self, InConnection: Connection) -> int:
     for key, value in enumerate(self.InstancesToConnections):
-      if (value == Connection):
+      if (value == InConnection):
         return key
 
     return -1
@@ -121,11 +127,11 @@ class RelayServer:
       return
 
   def ListenForConnections(self):
-    AcceptEvents = self.AcceptListener.select(0)
+    AcceptEvents: list[tuple[SelectorKey, int]] = self.AcceptListener.select(0)
     # We just iterate through the objects in the list, each one is a
     # connection we need to accept.
-    for i in AcceptEvents:
-      NewConnection = self.ListenSocket.accept()
+    for _ in AcceptEvents:
+      NewConnection: Connector = self.ListenSocket.accept()
       Logger.Log(LogLevel.Verbose, "A new connection has been made!")
       self.Connections.append(NewConnection)
 
@@ -140,7 +146,7 @@ class RelayServer:
         RawMessage = None
         # Check to see if we were suddenly disconnected for whatever reason
         try:
-          RawMessage = CurrentConnection.recv()
+          RawMessage: Any = CurrentConnection.recv()
         except EOFError:
           self.DeadConnections.append(CurrentConnection)
           break
@@ -148,7 +154,7 @@ class RelayServer:
         # Check to see if the message is valid.
         if (not RelayMessage.IsValid(RawMessage)):
           continue
-        Message:RelayMessage = RawMessage
+        Message: RelayMessage = cast(RelayMessage, RawMessage)
         match Message.Type:
           case RelayMessageType.Hello:
             if (not Message.Sender in self.InstancesToConnections):
@@ -175,10 +181,10 @@ class RelayServer:
 class RelayClient:
   BotID:int = -1
 
-  def __init__(self, InFileLocation, InBotID:int=-1):
-    self.Connection = None
-    self.SentHello = False
-    self.FunctionRouter = {}
+  def __init__(self, InFileLocation: str, InBotID:int=-1):
+    self.Connection: Connector|None = None
+    self.SentHello: bool = False
+    self.FunctionRouter: dict[RelayMessageType, Any] = {}
 
     if (UseUnixSockets()):
       self.Connection = Client(InFileLocation, "AF_UNIX")
@@ -196,7 +202,7 @@ class RelayClient:
       self.Connection = None
 
   def GenerateMessage(self, Type:RelayMessageType, *, Destination:int=-1, TargetServer:int=-1,
-                      HandlingCooldown:bool=False, TargetUserId:int=-1, NumToRetry=-1, AuthName:str="", Reason:str|None=None) -> RelayMessage:
+                      HandlingCooldown:bool=False, TargetUserId:int=-1, NumToRetry:int=-1, AuthName:str="", Reason:str|None=None) -> RelayMessage:
     DataPayload={}
     match Type:
       case RelayMessageType.BanUser | RelayMessageType.UnbanUser | RelayMessageType.Kick:
@@ -211,17 +217,19 @@ class RelayClient:
       case RelayMessageType.ReprocessBans:
         DataPayload={"TargetServer": TargetServer, "NumToRetry": NumToRetry,
                      "HandlingCooldown": HandlingCooldown}
+      case _:
+        pass
 
     return RelayMessage(Type, self.BotID, Destination, DataPayload)
 
-  def RegisterFunction(self, OnMessageType:RelayMessageType, FunctionToExecute):
+  def RegisterFunction(self, OnMessageType: RelayMessageType, FunctionToExecute):
     if (not OnMessageType in self.FunctionRouter):
       Logger.Log(LogLevel.Verbose, f"Registering function type {str(OnMessageType)} for {str(self)}")
       self.FunctionRouter[OnMessageType] = FunctionToExecute
     else:
       Logger.Log(LogLevel.Warn, f"Attempted to re-register function for {str(OnMessageType)} for {str(self)}")
 
-  def SendHello(self):
+  def SendHello(self) -> None:
     if (self.SentHello or self.Connection is None):
       Logger.Log(LogLevel.Warn, f"Bot #{self.BotID} unable to start up!")
       return
@@ -236,39 +244,39 @@ class RelayClient:
       return
     self.Connection.send(self.GenerateMessage(RelayMessageType.BanUser, TargetUserId=UserId, AuthName=InAuthName, Reason=InReason))
 
-  def SendKick(self, UserId:int, InAuthName:str, InReason:str|None=None):
+  def SendKick(self, UserId:int, InAuthName:str, InReason:str|None=None) -> None:
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
     self.Connection.send(self.GenerateMessage(RelayMessageType.Kick, TargetUserId=UserId, AuthName=InAuthName, Reason=InReason))
 
-  def SendUnban(self, UserId:int, InAuthName:str, InReason:str|None=None):
+  def SendUnban(self, UserId:int, InAuthName:str, InReason:str|None=None) -> None:
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
     self.Connection.send(self.GenerateMessage(RelayMessageType.UnbanUser, TargetUserId=UserId, AuthName=InAuthName, Reason=InReason))
 
-  def SendLeaveServer(self, ServerToLeave:int, InstanceId):
+  def SendLeaveServer(self, ServerToLeave:int, InstanceId: int) -> None:
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
     self.Connection.send(self.GenerateMessage(RelayMessageType.LeaveServer, Destination=InstanceId, TargetServer=ServerToLeave))
 
-  def SendReprocessBans(self, ServerToRetry:int, InstanceId, InNumToRetry:int=-1, InHandlingCooldown:bool=False):
+  def SendReprocessBans(self, ServerToRetry:int, InstanceId: int, InNumToRetry:int=-1, InHandlingCooldown:bool=False) -> None:
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
     self.Connection.send(self.GenerateMessage(RelayMessageType.ReprocessBans, Destination=InstanceId,
                                               TargetServer=ServerToRetry, NumToRetry=InNumToRetry,
                                               HandlingCooldown=InHandlingCooldown))
 
-  def SendReprocessInstanceBans(self, InstanceId, InNumToRetry:int=-1):
+  def SendReprocessInstanceBans(self, InstanceId: int, InNumToRetry:int=-1) -> None:
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
     self.Connection.send(self.GenerateMessage(RelayMessageType.ReprocessInstance, Destination=InstanceId, NumToRetry=InNumToRetry))
 
-  def SendPing(self, InstanceToTarget):
+  def SendPing(self, InstanceToTarget: int) -> None:
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
     self.Connection.send(self.GenerateMessage(RelayMessageType.Ping, Destination=InstanceToTarget))
 
-  def SendActivationForServerInstance(self, UserId, ServerId, InstanceToTarget):
+  def SendActivationForServerInstance(self, UserId: int, ServerId: int, InstanceToTarget: int) -> None:
     if (self.Connection is None or self.BotID != ConfigData["ControlBotID"]):
       return
     self.Connection.send(self.GenerateMessage(RelayMessageType.ProcessServerActivation, TargetUserId=UserId,
@@ -291,7 +299,7 @@ class RelayClient:
         Logger.Log(LogLevel.Warn, f"Bot #{self.BotID} received relay message is not a type of RelayMessage")
         break
 
-      RelayedMessage:RelayMessage = RawMessage
+      RelayedMessage: RelayMessage = RawMessage
       # If the message doesn't have a handler
       if (not RelayedMessage.Type in self.FunctionRouter):
         Logger.Log(LogLevel.Warn, f"We do not have a message router for type {RelayedMessage.Type}")

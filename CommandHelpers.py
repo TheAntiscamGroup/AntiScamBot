@@ -52,18 +52,18 @@ async def CommandErrorHandler(interaction: Interaction, error: app_commands.AppC
 
   InteractionName:str = interaction.command.name
   if (ErrorType == app_commands.CommandOnCooldown):
-    ErrorMsg = Messages["cmds_error"]["on_cooldown"].format(cmd=InteractionName)
+    ErrorMsg = Messages["cmds_error","on_cooldown"].format(cmd=InteractionName)
   elif (ErrorType == app_commands.MissingPermissions):
-    ErrorMsg = Messages["cmds_error"]["no_permission"].format(cmd=InteractionName)
+    ErrorMsg = Messages["cmds_error","no_permission"].format(cmd=InteractionName)
   elif (ErrorType == app_commands.MissingRole):
-    ErrorMsg = Messages["cmds_error"]["missing_roles"].format(cmd=InteractionName)
+    ErrorMsg = Messages["cmds_error","missing_roles"].format(cmd=InteractionName)
   elif (ErrorType == app_commands.CheckFailure):
     if (InteractionName == "activate"):
-      ErrorMsg = Messages["cmds"]["check"]["need_activate"]
+      ErrorMsg = Messages["cmds","check","need_activate"]
     else:
-      ErrorMsg = Messages["cmds"]["check"]["change_settings"]
+      ErrorMsg = Messages["cmds","check","change_settings"]
   else:
     Logger.Log(LogLevel.Error, f"Encountered error running command /{InteractionName}: {str(error)} ```{traceback.format_exc(limit=3)}```")
-    ErrorMsg = Messages["cmds_error"]["general"]
+    ErrorMsg = Messages["cmds_error","general"]
 
   await interaction.response.send_message(ErrorMsg, ephemeral=True, delete_after=10.0)
