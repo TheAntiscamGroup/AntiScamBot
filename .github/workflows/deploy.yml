@@ -29,31 +29,11 @@ jobs:
       - name: Verify Branch is Prod
         if: github.ref != 'refs/heads/prod'
         run: exit 1
-  # Need to convert this input so that it's uniform, because default wasn't working
-  workflow_check:
-    name: Handle Workflow Input
-    runs-on: ubuntu-latest
-    outputs:
-      should_restart: ${{ steps.solver.outputs.restart }}
-    steps:
-      - name: Need Force Restart Check
-        id: solver
-        run: |
-          if $HAS_INPUT; then
-            echo "restart=${{ github.event.inputs.restart_bot }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "restart=false" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          HAS_INPUT: ${{ github.event.inputs.restart_bot != '' }}
-      - name: Check Output
-        run: echo ${{ steps.solver.outputs.restart }}
   deploy:
     name: Deploy Bot
-    needs: workflow_check
     uses: theantiscamgroup/workflows/.github/workflows/deploy_bot.yml@main
     secrets: inherit
     with:
       ref: ${{ github.ref }}
       path: "~/project/AntiScamBot"
-      force_restart: ${{ needs.workflow_check.outputs.should_restart == 'true' }}
+      force_restart: ${{ github.event.inputs.restart_bot == 'true' }}
