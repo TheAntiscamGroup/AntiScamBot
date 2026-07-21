@@ -6,23 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  clean-actions:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - name: Clean GH Actions
-        id: clean
-        uses: igorjs/gh-actions-clean-workflow@5fa2e3a4fdd40e3e7098645a0b8df08624352e5e
-        with:
-          token: ${{ secrets.CLEANER_TOKEN }}
-          runs_older_than: 2
-          runs_to_keep: 3
-
-      - name: Display metrics
-        run: |
-          echo "Total runs found: ${{ steps.clean.outputs.total-runs-found }}"
-          echo "Runs deleted: ${{ steps.clean.outputs.runs-deleted }}"
-          echo "Runs failed: ${{ steps.clean.outputs.runs-failed }}"
-          echo "API requests: ${{ steps.clean.outputs.total-api-requests }}"
-          echo "Rate limit hits: ${{ steps.clean.outputs.rate-limit-hits }}"
+  run:
+    name: Cleanup
+    uses: socksthewolf/workflows/.github/workflows/clean.yml@main
+    secrets:
+      CLEAN_TOKEN: ${{ secrets.GITHUB_TOKEN }}
