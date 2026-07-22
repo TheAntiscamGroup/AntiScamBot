@@ -1,12 +1,14 @@
 name: "Clean Actions"
 
 on:
+  push:
   schedule:
     - cron: "0 0 * * 1"
+
+permissions:
+  actions: write
 
 jobs:
   run:
     name: Cleanup
-    uses: theantiscamgroup/workflows/.github/workflows/clean.yml@main
-    secrets:
-      CLEAN_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: theantiscamgroup/workflows/.github/workflows/clean_actions.yml@main
