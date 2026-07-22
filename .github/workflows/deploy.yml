@@ -23,6 +23,8 @@ permissions:
 
 jobs:
   check_prod:
+    name: Check Branch Run
+    continue-on-error: false
     runs-on: ubuntu-latest
     steps:
       # Error out if not prod
