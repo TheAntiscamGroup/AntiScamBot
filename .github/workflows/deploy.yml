@@ -37,4 +37,4 @@ jobs:
     with:
       ref: ${{ github.ref }}
       path: "~/project/AntiScamBot"
-      force_restart: ${{ github.event.inputs.restart_bot == 'true' }}
+      force_restart: ${{ github.event.inputs.restart_bot == true }}
