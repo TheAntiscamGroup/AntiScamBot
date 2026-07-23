@@ -32,7 +32,6 @@ jobs:
         if: github.ref != 'refs/heads/prod'
         run: exit 1
   deploy:
-    name: Deploy Bot
     uses: theantiscamgroup/workflows/.github/workflows/deploy_bot.yml@main
     secrets: inherit
     with:

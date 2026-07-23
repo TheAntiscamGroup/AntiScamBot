@@ -1,5 +1,4 @@
 name: "Clean Actions"
-
 on:
   push:
   schedule:
@@ -9,6 +8,5 @@ permissions:
   actions: write
 
 jobs:
-  run:
-    name: Cleanup
+  clean_actions:
     uses: theantiscamgroup/workflows/.github/workflows/clean_actions.yml@main
