@@ -2,3 +2,4 @@ core_updated:
   - '**.py'
   - 'config.json'
   - 'TextStrings.toml'
+  - '.runtime/**.sh'
