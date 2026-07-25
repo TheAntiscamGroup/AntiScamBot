@@ -141,6 +141,20 @@ class ServerActivationApproval(SelfDeletingView):
 
     await self.StopInteractions()
 
+  @ui.button(label="Silently Leave Server", style=ButtonStyle.danger, row=4)
+  async def force_leave(self, interaction:Interaction, button:ui.Button):
+    self.HasInteracted = True
+    ServerID:int = self.Payload.GetServerID()
+    Bot = interaction.client
+    ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server) # pyright: ignore[reportAttributeAccessIssue]
+
+    await interaction.response.send_message(f"Activation leaving server {ServerIDStr}.")
+
+    # force leave the server
+    Bot.LeaveServer(ServerID) # pyright: ignore[reportAttributeAccessIssue]
+
+    await self.StopInteractions()
+
   @ui.button(label="Forbid Forever", style=ButtonStyle.danger, row=4)
   async def forbid_activation(self, interaction:Interaction, button:ui.Button):
     self.HasInteracted = True

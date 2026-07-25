@@ -714,6 +714,9 @@ Failed Copied Evidence Links:
       if (ConfigData["ScamCheckShowsSharedServers"]):
         UserData.add_field(name="Shared Servers", value=f"~{len(User.mutual_guilds)}")
 
+      # To make it easier to copy ids from scamchecks
+      UserData.add_field(name="Discord ID", value=f"`{User.id}`", inline=False)
+
       # If we have an evidence thread, display it.
       if (UserBanned and BanData.evidence_thread is not None):
         UserData.add_field(name="Evidence (TAG Server)", value=f"<#{BanData.evidence_thread}>", inline=False)
