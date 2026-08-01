@@ -1,24 +1,29 @@
 # The core main instance of ScamGuard, used as the primary instance. This should have code that only needs to be ran by a single instance
 # Such as the host system that shares commands/messages to sub-instances and things like backup.
 # It should not handle any recv instructions from ServerHandler except for requests by sub-instances.
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from Logger import Logger, LogLevel
 from BotEnums import BanResult, BanAction, ModerationAction
 from Config import Config
 from BotBase import DiscordBot
 from BotConnections import RelayServer
 from datetime import datetime, timedelta
-from discord import Embed, User, Member, HTTPException, Message, Thread
+from discord import Embed, HTTPException, Message, Thread
 from discord.ext import tasks
 from multiprocessing import Process
 from BotSubprocess import CreateBotProcess
 import asyncio
+
+if TYPE_CHECKING:
+  from Types import DiscordPerson
 
 __all__ = ["ScamGuard"]
 
 ConfigData:Config=Config()
 
 class ScamGuard(DiscordBot):
-  ServerHandler:RelayServer = None # pyright: ignore[reportAssignmentType]
+  ServerHandler: RelayServer
   HasStartedInstances:bool = False
   SubProcess={}
 
@@ -46,10 +51,12 @@ class ScamGuard(DiscordBot):
 
   ### Task Interval Handling ###
   def ConfigBackupInterval(self):
-    self.PeriodicBackup.change_interval(seconds=0.0, minutes=0.0, hours=float(ConfigData["RunBackupEveryXHours"])) # pyright: ignore[reportAttributeAccessIssue]
+    BackupHours:float = float(ConfigData["RunBackupEveryXHours"])
+    self.PeriodicBackup.change_interval(seconds=0.0, minutes=0.0, hours=BackupHours) # pyright: ignore[reportAttributeAccessIssue]
 
   def ConfigLeaveInterval(self):
-    self.PeriodicLeave.change_interval(seconds=0.0, minutes=0.0, hours=float(ConfigData["RunIdleCleanupEveryXHours"])) # pyright: ignore[reportAttributeAccessIssue]
+    LeaveHours:float = float(ConfigData["RunIdleCleanupEveryXHours"])
+    self.PeriodicLeave.change_interval(seconds=0.0, minutes=0.0, hours=LeaveHours) # pyright: ignore[reportAttributeAccessIssue]
 
   def RetryTaskInterval(self, task):
     task.change_interval(seconds=0.0, minutes=5.0, hours=0.0)
@@ -232,18 +239,22 @@ class ScamGuard(DiscordBot):
     self.HasStartedInstances = True
 
   async def StartInstance(self, InstanceID:int):
-    RelayFileHandleLocation = self.ServerHandler.GetFileLocation()
+    # For unix sockets, otherwise this will just become localhost
+    RelayFileAddr:str = self.ServerHandler.GetFileLocation()
     if (InstanceID == 0):
-      self.ClientHandler = None # pyright: ignore[reportAttributeAccessIssue]
-      self.SetupClientConnection(RelayFileHandleLocation)
-      self.ClientHandler.SendHello()
+      self.ClientHandler = None
+      self.SetupClientConnection(RelayFileAddr)
+      if (self.ClientHandler is not None):
+        self.ClientHandler.SendHello()
+      else:
+        Logger.Log(LogLevel.Error, "Client Handler was invalid while starting instance!!!")
       return
 
     # Make sure to exit out of any instances if they're already running for this index
     await self.StopInstanceIfExists(InstanceID)
 
     Logger.Log(LogLevel.Log, f"Spinning up instance #{InstanceID}")
-    self.SubProcess[InstanceID] = Process(target=CreateBotProcess, args=(RelayFileHandleLocation, InstanceID), name=f'Bot-{InstanceID}')
+    self.SubProcess[InstanceID] = Process(target=CreateBotProcess, args=(RelayFileAddr, InstanceID), name=f'Bot-{InstanceID}')
     self.SubProcess[InstanceID].start()
 
   async def StopInstanceIfExists(self, InstanceID:int):
@@ -286,7 +297,7 @@ class ScamGuard(DiscordBot):
       Logger.Log(LogLevel.Log, f"WARN: Unable to publish message to announcement channel {str(ex)}")
 
   ### Ban Handling ###
-  async def HandleBanAction(self, TargetId:int, Sender:Member|User, Action:ModerationAction, *, ThreadId:int|None, Reason:str|None) -> BanAction:
+  async def HandleBanAction(self, TargetId:int, Sender:DiscordPerson, Action:ModerationAction, *, ThreadId:int|None, Reason:str|None) -> BanAction:
     DatabaseAction:BanAction = BanAction.DBError
     NewAnnouncement:Embed|None = None
 
@@ -320,7 +331,7 @@ class ScamGuard(DiscordBot):
   async def ReprocessBansForInstance(self, InstanceID:int, LastActions:int):
     if (InstanceID == self.BotID):
       await self.ReprocessInstance(LastActions)
-    else:
+    elif (self.ClientHandler is not None):
       self.ClientHandler.SendReprocessInstanceBans(InstanceId=InstanceID, InNumToRetry=LastActions)
 
   async def ReprocessBansForServer(self, ServerId:int, LastActions:int=0, HandlingCooldown:bool=False) -> BanResult:
@@ -329,13 +340,19 @@ class ScamGuard(DiscordBot):
       return await self.ReprocessBans(ServerId, LastActions, HandlingCooldown)
     elif (TargetBotId is None):
       return BanResult.Error
-    else:
+    elif (self.ClientHandler is not None):
       self.ClientHandler.SendReprocessBans(ServerId, InstanceId=TargetBotId,
                                            InNumToRetry=LastActions, InHandlingCooldown=HandlingCooldown)
       return BanResult.Processed
+    else:
+      return BanResult.Error
 
-  async def PropagateActionToServers(self, TargetId:int, Sender:Member|User, Action:ModerationAction, Reason:str|None=None):
+  async def PropagateActionToServers(self, TargetId:int, Sender:DiscordPerson, Action:ModerationAction, Reason:str|None=None):
     SenderName:str = Sender.name
+    if (self.ClientHandler is None):
+      Logger.Log(LogLevel.Error, f"Could not process action {Action} on {SenderName}, ClientHandler was invalid!")
+      return
+
     if (Action == ModerationAction.Ban):
       self.ClientHandler.SendBan(TargetId, SenderName, Reason)
     elif (Action == ModerationAction.Unban):

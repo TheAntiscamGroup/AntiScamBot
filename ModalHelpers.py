@@ -1,18 +1,24 @@
+from __future__ import annotations
 from discord import ui, Interaction, SelectOption, Guild, WebhookMessage, ButtonStyle
-from discord import Message, Role, TextChannel, ChannelType, Member, Permissions
+from discord import Message, Role, TextChannel, ChannelType, Permissions
 from Logger import Logger, LogLevel
 from TextWrapper import TextLibrary
-from typing import cast
+from Utils import GetBot
+from Types import OptionalChannel
+from typing import cast, TYPE_CHECKING
 import traceback
+if TYPE_CHECKING:
+  from Types import BotType, OptionalDiscordMember
 
 Messages:TextLibrary = TextLibrary()
 
-async def SendInteractionMessage(interaction: Interaction, message:str, delete_after:float=60.0, is_silent:bool=False):
+async def SendInteractionMessage(interaction:Interaction, message:str, delete_after:float=60.0, is_silent:bool=False):
   if (interaction.response.is_done()):
     ReturnMessage:WebhookMessage = await interaction.followup.send(message, ephemeral=True, silent=is_silent, wait=True)
+    Bot: BotType = GetBot(interaction)
     # Delete the message after a certain amount of time
     if (delete_after > 0.0):
-      interaction.client.AddAsyncTask(interaction.client.DeleteFutureMessage(ReturnMessage, delete_after)) # pyright: ignore[reportAttributeAccessIssue]
+      Bot.AddAsyncTask(Bot.DeleteFutureMessage(ReturnMessage, delete_after))
   else:
     await interaction.response.send_message(message, ephemeral=True, delete_after=delete_after, silent=is_silent)
 
@@ -72,13 +78,13 @@ class YesNoSelector(ui.Select):
     if (self.SetNotRequiredIfValueSet()):
       self.SetRequired(False)
 
-  def GetYesDescription(self) -> str: # pyright: ignore[reportReturnType]
+  def GetYesDescription(self) -> str|None:
     pass
 
-  def GetNoDescription(self) -> str: # pyright: ignore[reportReturnType]
+  def GetNoDescription(self) -> str|None:
     pass
 
-  def GetPlaceholder(self) -> str: # pyright: ignore[reportReturnType]
+  def GetPlaceholder(self) -> str|None:
     pass
 
   def SetNotRequiredIfValueSet(self) -> bool:
@@ -87,7 +93,9 @@ class YesNoSelector(ui.Select):
 # An override for channel selectors so that they do not show "This Interaction Failed" inappropriately
 class ModChannelSelector(ui.ChannelSelect):
   def __init__(self, RowPos:int|None=None):
-    super().__init__(row=RowPos, min_values=0, max_values=1, channel_types=[ChannelType.text], placeholder=Messages["selector"]["mod"]["placeholder"])
+    super().__init__(row=RowPos, min_values=0, max_values=1,
+                     channel_types=[ChannelType.text],
+                     placeholder=Messages["selector"]["mod"]["placeholder"])
 
   async def IsValid(self, interaction:Interaction, Silent:bool=False) -> bool:
     if (interaction is None or interaction.is_expired()):
@@ -101,13 +109,17 @@ class ModChannelSelector(ui.ChannelSelect):
         # if there are no values, and this field is left blank then this is optional.
         return True
 
-    ChannelToHookInto:TextChannel|None = cast(TextChannel|None, self.values[0].resolve())
+    ChannelToHookInto:OptionalChannel = cast(OptionalChannel, self.values[0].resolve())
     if (ChannelToHookInto is None):
       await SendInteractionMessage(interaction, Messages["selector"]["mod"]["needs_perms"])
       return False
 
+    if (interaction.guild is None or interaction.client.user is None):
+      Logger.Log(LogLevel.Warn, "Cannot check validity, the guild is invalid or we have been signed out...")
+      return False
+
     # Check channel permissions to see if we can post in there.
-    BotMember:Member|None = interaction.guild.get_member(interaction.client.user.id) # pyright: ignore[reportOptionalMemberAccess]
+    BotMember:OptionalDiscordMember = interaction.guild.get_member(interaction.client.user.id)
     if (BotMember is None):
       await SendInteractionMessage(interaction, Messages["selector"]["mod"]["discord_slow"])
       return False
@@ -120,7 +132,9 @@ class ModChannelSelector(ui.ChannelSelect):
       return False
 
     if (not Silent):
-      await SendInteractionMessage(interaction, Messages["selector"]["mod"]["channel_set"].format(mention=MentionStr), delete_after=1.0, is_silent=True)
+      await SendInteractionMessage(interaction,
+                                   Messages["selector"]["mod"]["channel_set"].format(mention=MentionStr),
+                                   delete_after=1.0, is_silent=True)
 
     return True
 
@@ -148,11 +162,11 @@ class SelfDeletingView(ui.View):
   async def on_error(self, interaction:Interaction, error:Exception, object:ui.Item):
     Logger.Log(LogLevel.Error, f"View interaction encountered an error {str(error)} ```{traceback.format_exc(limit=3)}```")
 
-  async def on_cancel(self, interaction:Interaction):
+  async def on_cancel(self, _:Interaction):
     pass
 
   @ui.button(label="Cancel", style=ButtonStyle.gray, row=4)
-  async def cancel(self, interaction:Interaction, button:ui.Button):
+  async def cancel(self, interaction:Interaction, _:ui.Button):
     if (self.HasInteracted):
       return
 

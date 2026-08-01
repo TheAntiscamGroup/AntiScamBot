@@ -1,11 +1,16 @@
 # An ipc messaging hub for communicating between different Discord bot instances
 # via multiprocessing
+from __future__ import annotations
 from Logger import Logger, LogLevel
-from multiprocessing.connection import Listener, Connection, Client, wait
+from multiprocessing.connection import Listener, Connection, Client, PipeConnection, wait
 from BotEnums import RelayMessageType
+from typing import TYPE_CHECKING, Any, cast
 from Config import Config
 import selectors, os, traceback
-from typing import cast
+type IPCConnection = Connection[Any, Any]|PipeConnection[Any, Any]
+
+if TYPE_CHECKING:
+  from ScamGuard import ScamGuard
 
 __all__ = ["RelayMessage", "RelayServer", "RelayClient"]
 
@@ -18,7 +23,7 @@ def UseUnixSockets() -> bool:
   return False
 
 class RelayMessage:
-  Type:RelayMessageType = None # pyright: ignore[reportAssignmentType]
+  Type:RelayMessageType
   Sender:int = -1
   Destination:int = -1
   Data = None
@@ -38,22 +43,22 @@ class RelayMessage:
     return InType != None and type(InType).__name__ == "RelayMessage"
 
 class RelayServer:
-  Connections=[]
+  Connections:list[IPCConnection]=[]
   # A very dumb way to keep track of error'd connections
-  DeadConnections=[]
-  InstancesToConnections={}
+  DeadConnections:list[IPCConnection]=[]
+  InstancesToConnections:dict[int, IPCConnection]={}
   FileLocation:str = ""
   ShouldStop:bool = False
   HasPrintedStop:bool = False
   ControlBotId:int = -1
-  BotInstance = None
+  BotInstance:ScamGuard
 
-  def __init__(self, InControlBotId:int, InBotInstance=None):
+  def __init__(self, InControlBotId: int, InBotInstance: ScamGuard):
     self.ControlBotId = InControlBotId
     self.BotInstance = InBotInstance
     if (UseUnixSockets()):
       self.ListenSocket = Listener(None, "AF_UNIX", backlog=10)
-      self.FileLocation = self.ListenSocket.address # pyright: ignore[reportAttributeAccessIssue]
+      self.FileLocation = str(self.ListenSocket.address)
     else:
       NeedsNTHack:bool = False
       # This is a really dumb hack to get around a bug (allow for address reuse)
@@ -82,7 +87,7 @@ class RelayServer:
   def GetFileLocation(self):
     return self.FileLocation
 
-  def GetInstanceForConnection(self, Connection) -> int:
+  def GetInstanceForConnection(self, Connection:IPCConnection) -> int:
     for key, value in enumerate(self.InstancesToConnections):
       if (value == Connection):
         return key
@@ -116,7 +121,8 @@ class RelayServer:
       self.ListenForConnections()
       self.HandleRecv()
     except Exception as ex:
-      Logger.Log(LogLevel.Error, f"Encountered error while handling connections, stopping server! Exception type: {type(ex)} | message: {str(ex)} | trace: {traceback.format_stack()}")
+      Logger.Log(LogLevel.Error,
+            f"Encountered error while handling connections, stopping server! Exception type: {type(ex)} | message: {str(ex)} | trace: {traceback.format_stack()}")
       self.ShouldStop = True
       return
 
@@ -173,15 +179,16 @@ class RelayServer:
             DestConnection.send(Message)
 
 class RelayClient:
-  BotID:int = -1
+  BotID: int = -1
+  Connection: IPCConnection|None
+  SentHello: bool
 
-  def __init__(self, InFileLocation, InBotID:int=-1):
-    self.Connection = None
+  def __init__(self, LocationAddr: str, InBotID: int=-1):
     self.SentHello = False
     self.FunctionRouter = {}
 
     if (UseUnixSockets()):
-      self.Connection = Client(InFileLocation, "AF_UNIX")
+      self.Connection = Client(LocationAddr, "AF_UNIX")
     else:
       self.Connection = Client(('localhost', ConfigData["RelayPort"]), "AF_INET")
     self.BotID = InBotID
@@ -196,7 +203,8 @@ class RelayClient:
       self.Connection = None
 
   def GenerateMessage(self, Type:RelayMessageType, *, Destination:int=-1, TargetServer:int=-1,
-                      HandlingCooldown:bool=False, TargetUserId:int=-1, NumToRetry=-1, AuthName:str="", Reason:str|None=None) -> RelayMessage:
+                      HandlingCooldown:bool=False, TargetUserId:int=-1,
+                      NumToRetry=-1, AuthName:str="", Reason:str|None=None) -> RelayMessage:
     DataPayload={}
     match Type:
       case RelayMessageType.BanUser | RelayMessageType.UnbanUser | RelayMessageType.Kick:
@@ -322,4 +330,5 @@ class RelayClient:
         else:
           self.FunctionRouter[RelayedMessage.Type](**Arguments)
       except Exception as ex:
-        Logger.Log(LogLevel.Warn, f"Bot #{self.BotID} Failed to handle recv message, got exception type: {type(ex)} | message: {str(ex)} | trace: {traceback.format_stack()}")
+        Logger.Log(LogLevel.Warn,
+            f"Bot #{self.BotID} Failed to handle recv message, got exception type: {type(ex)} | message: {str(ex)} | trace: {traceback.format_stack()}")

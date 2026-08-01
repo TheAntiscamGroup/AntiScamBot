@@ -1,15 +1,21 @@
-from discord import ui, Guild, ButtonStyle, Interaction, User, Member, TextChannel, Permissions
+from __future__ import annotations
+from discord import ui, Guild, ButtonStyle, Interaction, TextChannel, Permissions
 from ModalHelpers import YesNoSelector, SelfDeletingView, ModChannelSelector
 from BotDatabaseSchema import Server
 from Logger import Logger, LogLevel
 from TextWrapper import TextLibrary
 from Config import Config
-from typing import cast
+from typing import TYPE_CHECKING, cast
+from Utils import GetBot
+from Types import OptionalChannel
+
+if TYPE_CHECKING:
+  from Types import OptionalDiscordMember, OptionalDiscordPerson, BotType
 
 Messages:TextLibrary = TextLibrary()
 
 class BotSettingsPayload:
-  InteractiveUser:User|Member|None = None
+  InteractiveUser:OptionalDiscordPerson = None
   WebHookRequired:bool = False
   KickSusRequired:bool = False
 
@@ -40,9 +46,13 @@ class BotSettingsPayload:
 
     return self.MessageChannel.id
 
-  def LoadFromDB(self, BotInstance):
+  def LoadFromDB(self, BotInstance: BotType):
     DB = BotInstance.Database
-    ServerInfo:Server = DB.GetServerInfo(self.GetServerID())
+    ServerInfo:Server|None = DB.GetServerInfo(self.GetServerID())
+    if (ServerInfo is None):
+      Logger.Log(LogLevel.Warn, "ServerInfo was none while loading server settings")
+      return
+
     if (int(ServerInfo.activation_state) == 0):
       self.KickSusRequired = self.WebHookRequired = True
     else:
@@ -52,7 +62,7 @@ class BotSettingsPayload:
     # Check to see what the setting is for messaging channel, if it's 0, leave MessageChannel as None
     # else load up the text channel value
     if (int(ServerInfo.message_channel) != 0):
-      self.MessageChannel = BotInstance.get_channel(ServerInfo.message_channel)
+      self.MessageChannel = BotInstance.GetChannelById(ServerInfo.message_channel)
 
 class InstallWebhookSelector(YesNoSelector):
   def GetYesDescription(self) -> str:
@@ -81,11 +91,11 @@ class KickSuspiciousUsersSelector(YesNoSelector):
     return True
 
 class ServerSettingsView(SelfDeletingView):
-  ChannelSelect:ModChannelSelector = None # pyright: ignore[reportAssignmentType]
-  WebhookSelector:InstallWebhookSelector = None # pyright: ignore[reportAssignmentType]
-  SuspiciousUserKicks:KickSuspiciousUsersSelector = None # pyright: ignore[reportAssignmentType]
+  ChannelSelect:ModChannelSelector
+  WebhookSelector:InstallWebhookSelector|None = None
+  SuspiciousUserKicks:KickSuspiciousUsersSelector|None = None
   CallbackFunction = None
-  Payload:BotSettingsPayload = None # pyright: ignore[reportAssignmentType]
+  Payload:BotSettingsPayload
 
   def __init__(self, InCB, interaction: Interaction):
     super().__init__()
@@ -95,7 +105,7 @@ class ServerSettingsView(SelfDeletingView):
     self.Payload = BotSettingsPayload()
     self.Payload.Server = interaction.guild
     self.Payload.InteractiveUser = interaction.user
-    self.Payload.LoadFromDB(interaction.client)
+    self.Payload.LoadFromDB(GetBot(interaction))
 
     self.ChannelSelect = ModChannelSelector(RowPos=0)
     # If we don't have a message channel selected, force this setting here.
@@ -119,32 +129,35 @@ class ServerSettingsView(SelfDeletingView):
     self.CallbackFunction = InCB
 
   @ui.button(label="Confirm Settings", style=ButtonStyle.success, row=4)
-  async def setup(self, interaction: Interaction, button: ui.Button):
+  async def setup(self, interaction: Interaction, _: ui.Button):
     # Couple of quick reference settings
-    DB = interaction.client.Database # pyright: ignore[reportAttributeAccessIssue]
+    Bot = GetBot(interaction)
+    DB = Bot.Database
     ServerId:int = self.Payload.GetServerID()
     ConfigData:Config = Config()
 
     # State settings
-    MadeWebhookSelection:bool = self.WebhookSelector.HasValue()
     ChannelSelectRequired:bool = self.ChannelSelect.min_values == 1
     ChannelSelectChanged:bool = False
 
     # Check if we can install webhooks
-    if (ConfigData["AllowWebhookInstall"]):
+    if (ConfigData["AllowWebhookInstall"] and self.WebhookSelector is not None):
+      MadeWebhookSelection:bool = self.WebhookSelector.HasValue()
       if (MadeWebhookSelection):
         self.Payload.WantsWebhooks = self.WebhookSelector.GetValue() or False
       elif self.WebhookSelector.IsRequired():
         await interaction.response.send_message(Messages["selector"]["choose"], ephemeral=True, delete_after=10.0)
         return
 
-    # Check to see if the channel option has changed. This code specifically will allow it for the user to not change the setting and still
-    # use the old values
+    # Check to see if the channel option has changed. This code specifically will allow it for the user
+    # to not change the setting and still use the old values
     if (not ChannelSelectRequired):
       CurrentChannelSetting:int|None = DB.GetChannelIdForServer(ServerId)
       # Grab what the user selected if they have any selections
       NewChannelSetting:int|None = self.ChannelSelect.values[0].id if self.ChannelSelect.values else None
-      # If this is not required, and the user has made a selection and the selection is not the current setting, then do an update.
+
+      # If this is not required, and the user has made a selection
+      # and the selection is not the current setting, then do an update.
       if (NewChannelSetting is not None and CurrentChannelSetting != NewChannelSetting):
         Logger.Log(LogLevel.Debug, f"Channel Selection has changed from {CurrentChannelSetting} to {NewChannelSetting}")
         ChannelSelectRequired = True
@@ -155,18 +168,22 @@ class ServerSettingsView(SelfDeletingView):
       if (await self.ChannelSelect.IsValid(interaction, True) == False):
         return
 
-      ChannelToHookInto:TextChannel|None = cast(TextChannel|None, self.ChannelSelect.values[0].resolve())
+      ChannelToHookInto:OptionalChannel = cast(OptionalChannel, self.ChannelSelect.values[0].resolve())
       if (self.Payload.WantsWebhooks):
         # If the channel selection option has changed from the original setting, delete the original webhook
         if (ChannelSelectChanged):
           Logger.Log(LogLevel.Debug, "Deleting old webhook reference")
-          await interaction.client.DeleteWebhook(ServerId) # pyright: ignore[reportAttributeAccessIssue]
+          await Bot.DeleteWebhook(ServerId)
 
         if (interaction.client.user is None):
           Logger.Log(LogLevel.Error, "ScamGuard lost login during this interaction")
           return
 
-        BotMember:Member|None = cast(Guild, interaction.guild).get_member(interaction.client.user.id)
+        if (interaction.guild is None):
+          Logger.Log(LogLevel.Error, "The guild for the server settings is invalid")
+          return
+
+        BotMember:OptionalDiscordMember = interaction.guild.get_member(interaction.client.user.id)
         if (BotMember is None):
           Logger.Log(LogLevel.Error, "Bot was invalid during setup somehow")
           return
@@ -175,15 +192,18 @@ class ServerSettingsView(SelfDeletingView):
 
           # Check to see if we can manage webhooks in that channel, if the user wants us to add ban notifications
           if (not PermissionsObj.manage_webhooks):
-            await interaction.response.send_message(Messages["selector"]["webhook"]["need_perm"].format(channel=ChannelToHookInto.mention), ephemeral=True, delete_after=100.0)
+            await interaction.response.send_message(
+              Messages["selector"]["webhook"]["need_perm"].format(channel=ChannelToHookInto.mention),
+              ephemeral=True, delete_after=100.0)
             return
         else:
           Logger.Log(LogLevel.Warn, "ChannelToHookInto was None, which should not be an accessible area?")
-          await interaction.response.send_message(Messages["selector"]["webhook"]["text_channel"], ephemeral=True, delete_after=20.0)
+          await interaction.response.send_message(Messages["selector"]["webhook"]["text_channel"],
+                                                  ephemeral=True, delete_after=20.0)
           return
       # The user wanted webhooks but doesn't want them any more, delete the webhook from the channel.
-      elif (self.WebhookSelector.HasValueChanged() and self.Payload.HasMessageChannel()):
-        await interaction.client.DeleteWebhook(ServerId) # pyright: ignore[reportAttributeAccessIssue]
+      elif (self.WebhookSelector is not None and self.WebhookSelector.HasValueChanged() and self.Payload.HasMessageChannel()):
+        await Bot.DeleteWebhook(ServerId)
 
       self.Payload.MessageChannel = ChannelToHookInto
 
@@ -198,7 +218,7 @@ class ServerSettingsView(SelfDeletingView):
 
     # Respond to the user and kill the interactions
     MessageResponse:str = ""
-    if (not interaction.client.Database.IsActivatedInServer(ServerId)): # pyright: ignore[reportAttributeAccessIssue]
+    if (not Bot.Database.IsActivatedInServer(ServerId)):
       MessageResponse = Messages["settings"]["set_activation"]
     else:
       MessageResponse = Messages["settings"]["set_settings"]

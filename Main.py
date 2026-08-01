@@ -1,17 +1,21 @@
+from __future__ import annotations
 from Logger import Logger, LogLevel
 from BotEnums import BanAction, ModerationAction
 from Config import Config
 from datetime import datetime, timezone
 from CommandHelpers import TargetIdTransformer, ServerIdTransformer
-from discord import app_commands, Interaction, User, Member, Embed, Object, Webhook
+from discord import app_commands, Interaction, Embed, Object, Webhook
 from BotSetup import SetupDatabases
 from ScamGuard import ScamGuard
 from ConfirmBanView import ConfirmBan
 from TextWrapper import TextLibrary
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 ConfigData:Config=Config()
 Messages:TextLibrary = TextLibrary()
+
+if TYPE_CHECKING:
+  from Types import DiscordPerson
 
 if __name__ == '__main__':
   ### MAIN INSTANCE SETUP ###
@@ -57,14 +61,14 @@ if __name__ == '__main__':
       return
 
     if (ScamGuardBot.Database.IsInServer(server)):
-      BotInstance:int|None = ScamGuardBot.Database.GetBotIdForServer(server)
-      if (BotInstance is None):
+      BotInstanceId: int|None = ScamGuardBot.Database.GetBotIdForServer(server)
+      if (BotInstanceId is None):
         await interaction.response.send_message(f"Unable to find the bot instance for server {server}")
         return
       Logger.Log(LogLevel.Notice, f"Reprocessing bans for server {server} from {interaction.user.id}")
       ScamGuardBot.AddAsyncTask(ScamGuardBot.ReprocessBansForServer(server))
       ServersActivated = [server]
-      ScamGuardBot.Database.SetBotActivationForOwner(ServersActivated, True, BotInstance, ActivatorId=interaction.user.id)
+      ScamGuardBot.Database.SetBotActivationForOwner(ServersActivated, True, BotInstanceId, ActivatorId=interaction.user.id)
       await interaction.response.send_message(f"Reprocessing bans for {server}")
     else:
       await interaction.response.send_message(f"I am unable to resolve that server id!")
@@ -130,6 +134,9 @@ if __name__ == '__main__':
   @app_commands.checks.has_role(ConfigData["MaintainerRole"])
   @app_commands.describe(instance='Bot Instance ID to ping')
   async def PingInstance(interaction:Interaction, instance:app_commands.Range[int, 0]):
+    if (ScamGuardBot.ClientHandler is None):
+      await interaction.response.send_message("Client Handler was not ready!", ephemeral=True, delete_after=4.0)
+      return
     ScamGuardBot.ClientHandler.SendPing(instance)
     await interaction.response.send_message(f"Pinged instance #{instance}", ephemeral=True, delete_after=2.0)
 
@@ -197,7 +204,7 @@ if __name__ == '__main__':
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
 
-    Sender:User|Member = interaction.user
+    Sender:DiscordPerson = interaction.user
     Logger.Log(LogLevel.Verbose, f"Scamban message detected from {Sender} for {targetid}")
     # Check to see if the ban already exists
     if (not ScamGuardBot.Database.DoesBanExist(targetid)):
@@ -219,7 +226,7 @@ if __name__ == '__main__':
 
     await interaction.response.defer(thinking=True)
 
-    Sender:Member|User = interaction.user
+    Sender:DiscordPerson = interaction.user
     Logger.Log(LogLevel.Verbose, f"Scam unban message detected from {Sender} for {targetid}")
     Result:BanAction = await ScamGuardBot.HandleBanAction(targetid, Sender, ModerationAction.Unban, ThreadId=None, Reason=reason)
     ResponseMsg:str = ""

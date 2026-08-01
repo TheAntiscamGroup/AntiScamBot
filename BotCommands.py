@@ -1,19 +1,23 @@
 # ScamGuard application commands that are used on every server
-from typing import cast
+from __future__ import annotations
+from typing import TYPE_CHECKING, cast
 from CommandHelpers import TargetIdTransformer
-from discord import app_commands, Interaction, Member, User, Embed
+from discord import app_commands, Interaction, Member, Embed
 from ScamReportModal import SubmitScamReport
 from BotServerSettings import ServerSettingsView
 from TextWrapper import TextLibrary
 from Config import Config
+
+if TYPE_CHECKING:
+  from Types import OptionalDiscordPerson, BotType
 
 Messages:TextLibrary = TextLibrary()
 ConfigData:Config = Config()
 
 @app_commands.guild_only()
 class GlobalScamCommands(app_commands.Group):
-  def GetInstance(self):
-    return self.extras["instance"]
+  def GetInstance(self) -> BotType:
+    return cast(BotType, self.extras["instance"])
 
   def IsActivated(self, InteractionId:int) -> bool:
     return (self.GetInstance().Database.IsActivatedInServer(InteractionId))
@@ -68,7 +72,7 @@ class GlobalScamCommands(app_commands.Group):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True)
       return
 
-    UserToSend:Member|User|None = await self.GetInstance().LookupUser(target, ServerToInspect=interaction.guild)
+    UserToSend:OptionalDiscordPerson = await self.GetInstance().LookupUser(target, ServerToInspect=interaction.guild)
     # If the user is no longer in said server, then do a global lookup
     if (UserToSend is None):
       UserToSend = await self.GetInstance().LookupUser(target)
@@ -108,6 +112,9 @@ class GlobalScamCommands(app_commands.Group):
   @app_commands.describe(whisper='If the link should be not whispered (only changeable if you are a mod)')
   @app_commands.checks.cooldown(1, 2.0)
   async def InstallScamGuardUser_Global(self, interaction:Interaction, whisper:bool):
+    if (not ConfigData.IsValid("ToolLink", str)):
+      return
+
     # Always be a whisper unless you are an admin/mod
     MakeWhisper:bool = True
     # Was this in a server
@@ -116,7 +123,7 @@ class GlobalScamCommands(app_commands.Group):
       if (interaction.channel.permissions_for(cast(Member, interaction.user)).ban_members):
         MakeWhisper = whisper
 
-    await interaction.response.send_message("https://discord.com/oauth2/authorize?client_id=1443130827662823557", delete_after=10.0, ephemeral=MakeWhisper)
+    await interaction.response.send_message(ConfigData["ToolLink"], delete_after=10.0, ephemeral=MakeWhisper)
 
   @app_commands.command(name="config", description="Set ScamGuard Settings")
   @app_commands.checks.has_permissions(ban_members=True)

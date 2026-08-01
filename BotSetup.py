@@ -10,7 +10,7 @@ class DatabaseMigrator:
   # When the BotDatabaseSchema gets updated, update this value here and create a function that updates
   # from the last database version to this one. The naming scheme should match "upgrade_versionXtoY"
   # Database migrations apply linearly.
-  DATABASE_VERSION=8
+  DATABASE_VERSION:int=8
   VersionMap={}
   DatabaseCon:Engine
 

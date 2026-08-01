@@ -1,16 +1,22 @@
 # Helper functions for Discord application commands
+from __future__ import annotations
 from Logger import Logger, LogLevel
 from discord import Interaction, app_commands
 import traceback, re
 from TextWrapper import TextLibrary
+from typing import TYPE_CHECKING
+from Utils import GetBot
 
-UserIdReg = re.compile("\<\@([0-9]+)\>") # pyright: ignore[reportInvalidStringEscapeSequence]
+if TYPE_CHECKING:
+  from Types import BotType
+
+UserIdReg = re.compile("\\<\\@([0-9]+)\\>")
 Messages:TextLibrary = TextLibrary()
 
 # This transformer allows us to take in a discord id (as the default int is too small)
 # and properly convert it to a value that we can use to observe Discord data
 class BaseIdTransformer(app_commands.Transformer):
-  async def OnTransform(self, interaction: Interaction, TargetId:int) -> int:
+  async def OnTransform(self, _: Interaction, TargetId:int) -> int:
     return TargetId
 
   async def transform(self, interaction: Interaction, value: str) -> int:
@@ -32,7 +38,8 @@ class BaseIdTransformer(app_commands.Transformer):
 # This transformer checks to see if the given id is a real discord User.
 class TargetIdTransformer(BaseIdTransformer):
   async def OnTransform(self, interaction: Interaction, TargetId:int) -> int:
-    if (await interaction.client.UserAccountExists(TargetId)): # pyright: ignore[reportAttributeAccessIssue]
+    Bot:BotType = GetBot(interaction)
+    if (await Bot.UserAccountExists(TargetId)):
       return TargetId
     else:
       return -1
@@ -63,7 +70,8 @@ async def CommandErrorHandler(interaction: Interaction, error: app_commands.AppC
     else:
       ErrorMsg = Messages["cmds"]["check"]["change_settings"]
   else:
-    Logger.Log(LogLevel.Error, f"Encountered error running command /{InteractionName}: {str(error)} ```{traceback.format_exc(limit=3)}```")
+    Logger.Log(LogLevel.Error,
+               f"Encountered error running command /{InteractionName}: {str(error)} ```{traceback.format_exc(limit=3)}```")
     ErrorMsg = Messages["cmds_error"]["general"]
 
   await interaction.response.send_message(ErrorMsg, ephemeral=True, delete_after=10.0)

@@ -1,40 +1,50 @@
 # Discord Modal for submitting scam reports from other servers
-from discord import ui, TextStyle, Interaction, Member, User
+from __future__ import annotations
+from typing import TYPE_CHECKING
+from discord import ui, TextStyle, Interaction
 from Logger import Logger, LogLevel
 from TextWrapper import TextLibrary
+from Utils import GetBot
 
 Messages:TextLibrary = TextLibrary()
 
+if TYPE_CHECKING:
+  from Types import OptionalDiscordPerson, DiscordPerson
+
 class SubmitScamReport(ui.Modal):
-  ReportedUser:Member|User|None = None
+  ReportedUser:OptionalDiscordPerson = None
   # TODO: Make this a dropdown selector to make it easier for others. This probably shouldn't be done until everything
   # moves over to the ui.Label stuff.
   TypeOfScam = ui.TextInput(label=Messages["report"]["type"]["label"], required=True,
                     placeholder=Messages["report"]["type"]["msg"], max_length=50, min_length=10)
+
   Reasoning = ui.TextInput(label=Messages["report"]["details"]["label"],
                     placeholder=Messages["report"]["details"]["msg"],
                     style=TextStyle.paragraph,
                     max_length=700, required=False)
+
   ScamEvidence = ui.TextInput(label=Messages["report"]["evidence"]["label"],
                     placeholder=Messages["report"]["evidence"]["msg"],
                     style=TextStyle.paragraph,
                     min_length=1,
                     max_length=4000,
                     required=True)
-  def __init__(self, InReportUser:Member|User):
+
+  def __init__(self, InReportUser:DiscordPerson):
     self.ReportedUser = InReportUser
     TruncatedName:str = InReportUser.name[:19]
     ModalTitle:str=f"Report {TruncatedName}[{InReportUser.id}]"[:45]
     super().__init__(title=ModalTitle)
 
   async def on_submit(self, interaction: Interaction):
+    Bot = GetBot(interaction)
     if (self.ReportedUser is None):
       Logger.Log(LogLevel.Error, "Failed to get reported user on scam submission, somehow none???")
       await interaction.response.send_message(Messages["report"]["failed_submit"], ephemeral=True)
       return
 
     # Check to see if already banned.
-    if (interaction.client.Database.DoesBanExist(self.ReportedUser.id)): # pyright: ignore[reportAttributeAccessIssue]
+    if (Bot.Database.DoesBanExist(self.ReportedUser.id)):
       await interaction.response.send_message(Messages["cmds_error"]["already_banned"], ephemeral=True, delete_after=20.0)
       return
 
@@ -43,10 +53,11 @@ class SubmitScamReport(ui.Modal):
     # Log the original data so we don't lose it
     Logger.Log(LogLevel.Log, f"Given evidence for report for id {self.ReportedUser.id} is {self.ScamEvidence.value}")
 
+    GuildName:str = interaction.guild.name if interaction.guild is not None else ""
     ScamReportPayload = {
       "ReportingUserName": interaction.user.name,
       "ReportingUserId": interaction.user.id,
-      "ReportedServer": interaction.guild.name, # pyright: ignore[reportOptionalMemberAccess]
+      "ReportedServer": GuildName,
       "ReportedServerId": interaction.guild_id,
       "ReportedUserGlobalName": self.ReportedUser.display_name,
       "ReportedUserName": self.ReportedUser.name,
@@ -58,11 +69,10 @@ class SubmitScamReport(ui.Modal):
     }
 
     await interaction.response.defer(thinking=True)
-    interaction.client.AddAsyncTask(interaction.client.PostScamReport(ScamReportPayload)) # pyright: ignore[reportAttributeAccessIssue]
+    Bot.AddAsyncTask(Bot.PostScamReport(ScamReportPayload))
 
   async def on_error(self, interaction: Interaction, exceptionError: Exception):
     Logger.Log(LogLevel.Error, f"Encountered Exception with the scam report modal: {str(exceptionError)}")
-    # I hate pylance so much
     ReportedUserId = 0
     if (self.ReportedUser is not None):
       ReportedUserId = self.ReportedUser.id
