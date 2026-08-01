@@ -3,7 +3,7 @@
 import tomllib
 
 class TextLibrary():
-  __HasLoaded = False
+  __HasLoaded: bool = False
   def __new__(cls):
     if not hasattr(cls, 'instance'):
       cls.instance = super(TextLibrary, cls).__new__(cls)

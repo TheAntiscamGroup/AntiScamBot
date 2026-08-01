@@ -2,6 +2,7 @@ from enum import auto
 from BotEnums import CompareEnum
 import datetime, time, asyncio, sys, coloredlogs
 from logger_tt import setup_logging, logger
+from collections.abc import Callable
 
 __all__ = ["LogLevel", "Logger"]
 
@@ -43,11 +44,11 @@ class Logger():
     return f"[{NowTime}] "
 
   @staticmethod
-  def CLog(Conditional, Level:LogLevel, Input:str):
+  def CLog(Conditional:bool|Callable[..., bool], Level:LogLevel, Input:str):
     ShouldPrint:bool = False
     try:
       if (callable(Conditional)):
-        ShouldPrint = Conditional() # pyright: ignore[reportAssignmentType]
+        ShouldPrint = Conditional()
       else:
         ShouldPrint = bool(Conditional)
     except Exception as ex:

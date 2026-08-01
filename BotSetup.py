@@ -12,7 +12,7 @@ class DatabaseMigrator:
   # Database migrations apply linearly.
   DATABASE_VERSION=8
   VersionMap={}
-  DatabaseCon:Engine=None # pyright: ignore[reportAssignmentType]
+  DatabaseCon:Engine
 
   def __init__(self):
     database_url = URL.create(

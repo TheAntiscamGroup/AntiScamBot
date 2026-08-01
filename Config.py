@@ -1,12 +1,13 @@
 # Config singleton for loading configuration data from a json file
 import os, copy, json
+from typing import Any, cast
 from dotenv import load_dotenv
 from Logger import LogLevel, Logger
 
 load_dotenv()
 
 class Config():
-  __HasLoaded = False
+  __HasLoaded:bool = False
   def __new__(cls):
     if not hasattr(cls, 'instance'):
       cls.instance = super(Config, cls).__new__(cls)
@@ -36,20 +37,19 @@ class Config():
   def __getitem__(self, item):
      return self.__dict__[item]
 
-  def IsValid(self, Key:str, ExpectType) -> bool:
+  def IsValid(self, Key:str, ExpectType:type[Any]) -> bool:
     try:
-      EntryValue = self[Key]
-      EntryValueType = type(EntryValue)
-      if (EntryValueType != ExpectType):
+      EntryValue:Any = self[Key]
+      if (not isinstance(EntryValue, ExpectType)):
         return False
 
-      if (EntryValueType == int):
-        if (EntryValue <= 0):
+      if (type(EntryValue) is int):
+        if (cast(int, EntryValue) <= 0):
           return False
         else:
           return True
-      elif (EntryValueType == str):
-        if (len(EntryValue) == 0):
+      elif (type(EntryValue) is str):
+        if (len(cast(str, EntryValue)) == 0):
           return False
 
         return True
@@ -114,3 +114,9 @@ class Config():
 
   def Dump(self):
     print(self)
+
+if __name__ == '__main__':
+  ConfigData:Config=Config()
+  ConfigData.Dump()
+  print(ConfigData.IsValid("NotificationChannel", int))
+  print(ConfigData.IsValid("ReportChannelTag", str))

@@ -13,7 +13,7 @@ from typing import cast
 ConfigData:Config = Config()
 
 class DatabaseDriver():
-  Database:Session = None # pyright: ignore[reportAssignmentType]
+  Database:Session|None = None
 
   ### Initialization/Teardown ###
   def __init__(self, *args, **kwargs):
@@ -35,9 +35,12 @@ class DatabaseDriver():
     self.Database = Session(create_engine(database_url))
 
   def Close(self):
+    if (self.Database is None):
+      return
+
     if (self.IsConnected()):
       cast(Engine, self.Database.get_bind()).dispose()
-      self.Database = None # pyright: ignore[reportAttributeAccessIssue]
+      self.Database = None
 
   def IsConnected(self) -> bool:
     if (self.Database is not None):
@@ -52,6 +55,9 @@ class DatabaseDriver():
     return True
 
   def Backup(self) -> bool:
+    if (self.Database is None):
+      return False
+
     if (not self.HasBackupDirectory()):
       Logger.Log(LogLevel.Warn, "Backup directory does not exist!!")
       return False
@@ -95,6 +101,9 @@ class DatabaseDriver():
 
   ### Adding/Updating/Removing Server Entries ###
   def AddBotGuilds(self, ListOwnerAndServerTuples, BotID:int):
+    if (self.Database is None):
+      return
+
     BotAdditionUpdates:list[Server] = []
     for Entry in ListOwnerAndServerTuples:
       server = Server(
@@ -111,6 +120,9 @@ class DatabaseDriver():
     Logger.Log(LogLevel.Notice, f"Bot #{BotID} had {len(BotAdditionUpdates)} new server updates")
 
   def SetNewServerOwner(self, ServerId:int, NewOwnerId:int, BotId:int):
+    if (self.Database is None):
+      return
+
     stmt = select(Server).where((Server.discord_server_id==ServerId) & (Server.bot_instance_id==BotId))
     server = self.Database.scalars(stmt).first()
 
@@ -124,6 +136,9 @@ class DatabaseDriver():
     self.Database.commit()
 
   def SetFromServerSettings(self, ServerId:int, ServerSettings:BotSettingsPayload):
+    if (self.Database is None):
+      return
+
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     serverToChange = self.Database.scalars(stmt).first()
 
@@ -139,6 +154,9 @@ class DatabaseDriver():
 
 
   def RemoveServerEntry(self, ServerId:int, BotId:int):
+    if (self.Database is None):
+      return
+
     stmt = select(Server).where((Server.discord_server_id==ServerId) & (Server.bot_instance_id==BotId))
     server = self.Database.scalars(stmt).first()
 
@@ -153,6 +171,9 @@ class DatabaseDriver():
     self.Database.commit()
 
   def ToggleServerBan(self, ServerId:int, NewStatus:bool):
+    if (self.Database is None):
+      return
+
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
     if (server is None):
@@ -163,6 +184,9 @@ class DatabaseDriver():
     self.Database.commit()
 
   def ToggleServerReport(self, ServerId:int, NewStatus:bool):
+    if (self.Database is None):
+      return
+
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
     if (server is None):
@@ -173,6 +197,8 @@ class DatabaseDriver():
     self.Database.commit()
 
   def SetBotActivationForOwner(self, Servers:list[int], IsActive:bool, BotId:int, OwnerId:int=-1, ActivatorId:int=-1):
+    if (self.Database is None):
+      return
     NumActivationChanges = 0
     NumActivationAdditions = 0
     ActiveVal = int(IsActive)
@@ -208,7 +234,6 @@ class DatabaseDriver():
 
         self.Database.add(serverToChange)
 
-
     if (NumActivationAdditions > 0):
       Logger.Log(LogLevel.Debug, f"We have {NumActivationAdditions} additions")
 
@@ -219,6 +244,9 @@ class DatabaseDriver():
 
   ### Server Forbidden ###
   def ForbidServerActivation(self, ServerId: int, UserId: int):
+    if (self.Database is None):
+      return True
+
     if (self.IsServerForbidden(ServerId)):
       return False
 
@@ -232,6 +260,8 @@ class DatabaseDriver():
     return True
 
   def RemoveForbiddenActivation(self, ServerId: int):
+    if (self.Database is None):
+      return False
     stmt = select(DeniedServers).where(DeniedServers.discord_server_id==ServerId)
     serverban = self.Database.scalars(stmt).first()
     if (serverban is None):
@@ -242,6 +272,8 @@ class DatabaseDriver():
     return True
 
   def IsServerForbidden(self, ServerId: int):
+    if (self.Database is None):
+      return False
     stmt = select(DeniedServers).where(DeniedServers.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
     if (server is None):
@@ -250,6 +282,8 @@ class DatabaseDriver():
 
   ### Reconcile Servers ###
   def ReconcileServers(self, Servers, BotId:int):
+    if (self.Database is None):
+      return
     NewAdditions = []
     # Discord Guild IDs that we will later use to remove
     ServersIn:list[int] = []
@@ -300,6 +334,8 @@ class DatabaseDriver():
 
   ### Query Status ###
   def IsInServer(self, ServerId:int) -> bool:
+    if (self.Database is None):
+      return False
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
     if (server is None):
@@ -307,6 +343,9 @@ class DatabaseDriver():
     return True
 
   def IsActivatedInServer(self, ServerId:int) -> bool:
+    if (self.Database is None):
+      return False
+
     if (not self.IsInServer(ServerId)):
       return False
 
@@ -321,6 +360,9 @@ class DatabaseDriver():
     return False
 
   def CanServerReport(self, ServerId:int) -> bool:
+    if (self.Database is None):
+      return False
+
     if (not self.IsInServer(ServerId)):
       return False
 
@@ -335,6 +377,9 @@ class DatabaseDriver():
     return False
 
   def DoesBanExist(self, TargetId:int) -> bool:
+    if (self.Database is None):
+      return False
+
     stmt = select(Ban).where(Ban.discord_user_id==TargetId)
     result = self.Database.scalars(stmt).first()
 
@@ -345,16 +390,25 @@ class DatabaseDriver():
 
   # Returns ban information
   def GetBanInfo(self, TargetId:int) -> Ban|None:
+    if (self.Database is None):
+      return None
+
     stmt = select(Ban).where(Ban.discord_user_id==TargetId)
     return self.Database.scalars(stmt).first()
 
   # Returns server information
   def GetServerInfo(self, ServerId:int) -> Server|None:
+    if (self.Database is None):
+      return None
+
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     return self.Database.scalars(stmt).first()
 
   ### Adding/Removing Bans ###
   def AddBan(self, TargetId:int, BannerName:str, BannerId:int, ThreadId:int|None) -> BanAction:
+    if (self.Database is None):
+      return BanAction.DBError
+
     if (self.DoesBanExist(TargetId)):
       return BanAction.Duplicate
 
@@ -373,6 +427,9 @@ class DatabaseDriver():
     return BanAction.Banned
 
   def RemoveBan(self, TargetId:int) -> BanAction:
+    if (self.Database is None):
+      return BanAction.DBError
+
     if (not self.DoesBanExist(TargetId)):
       return BanAction.NotExist
 
@@ -386,7 +443,7 @@ class DatabaseDriver():
 
   ### Updating Ban Data ###
   def SetEvidenceThread(self, TargetId:int, ThreadId:int):
-    if (TargetId <= 0 or ThreadId <= 0):
+    if (self.Database is None or TargetId <= 0 or ThreadId <= 0):
       return
 
     if (not self.DoesBanExist(TargetId)):
@@ -405,6 +462,9 @@ class DatabaseDriver():
 
   ### Getting Server Information ###
   def GetAllServersOfOwner(self, OwnerId:int) -> list[Server]:
+    if (self.Database is None):
+      return []
+
     stmt = select(Server).where(Server.owner_discord_user_id==OwnerId)
     servers = self.Database.scalars(stmt).all()
 
@@ -414,6 +474,9 @@ class DatabaseDriver():
     return list(servers)
 
   def GetOwnerOfServer(self, ServerId:int) -> int|None:
+    if (self.Database is None):
+      return None
+
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
 
@@ -424,6 +487,9 @@ class DatabaseDriver():
     return int(server.owner_discord_user_id)
 
   def GetBotIdForServer(self, ServerId:int) -> int|None:
+    if (self.Database is None):
+      return None
+
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
 
@@ -434,6 +500,9 @@ class DatabaseDriver():
     return int(server.bot_instance_id)
 
   def GetChannelIdForServer(self, ServerId:int) -> int|None:
+    if (self.Database is None):
+      return None
+
     stmt = select(Server).where(Server.discord_server_id==ServerId)
     server = self.Database.scalars(stmt).first()
 
@@ -448,6 +517,9 @@ class DatabaseDriver():
     return ReturnValue
 
   def GetAllBans(self, NumLastActions:int=0) -> list[Ban]:
+    if (self.Database is None):
+      return []
+
     stmt = select(Ban)
 
     if (NumLastActions > 0):
@@ -458,6 +530,9 @@ class DatabaseDriver():
     return list(self.Database.scalars(stmt).all())
 
   def GetAllServers(self, FilterOnlyActivated:bool=False, OfInstance:int=-1, FilterBanability:bool=False, FilterKicking:bool=False) -> list[Server]:
+    if (self.Database is None):
+      return []
+
     stmt = select(Server)
 
     if (FilterOnlyActivated):
@@ -487,6 +562,9 @@ class DatabaseDriver():
     return []
 
   def GetAllDeactivatedServers(self) -> list[Server]:
+    if (self.Database is None):
+      return []
+
     ControlServerID:int = ConfigData["ControlServer"]
     # Always ignore the control server
     stmt = select(Server).where(Server.activation_state==False).where(Server.discord_server_id!=ControlServerID)
@@ -495,6 +573,9 @@ class DatabaseDriver():
 
   ### Cooldown ###
   def GetServerCooldown(self, ServerId:int) -> ExhaustedServer|None:
+    if (self.Database is None):
+      return None
+
     stmt = select(ExhaustedServer).where(ExhaustedServer.discord_server_id==ServerId)
     return self.Database.scalars(stmt).first()
 
@@ -509,6 +590,9 @@ class DatabaseDriver():
     return ServerObj.is_processing > 0
 
   def SetProcessingServerCooldown(self, ServerId:int, NewFlag:bool):
+    if (self.Database is None):
+      return
+
     exUpdate:ExhaustedServer|None = self.GetServerCooldown(ServerId)
     if (exUpdate is None):
       return
@@ -517,7 +601,10 @@ class DatabaseDriver():
     self.Database.add(exUpdate)
     self.Database.commit()
 
-  def UpdateServerCooldown(self, ServerId:int, NumCompleted:int) -> int:
+  def UpdateServerCooldown(self, ServerId:int, NumCompleted:int) -> int|None:
+    if (self.Database is None):
+      return None
+
     exhaustedUpdate:ExhaustedServer|None = self.GetServerCooldown(ServerId)
 
     # Create if it doesn't exist.
@@ -536,15 +623,21 @@ class DatabaseDriver():
 
     return exhaustedUpdate.current_pos
 
-  def RemoveServerCooldown(self, ServerId:int):
+  def RemoveServerCooldown(self, ServerId:int) -> bool:
+    if (self.Database is None):
+      return False
     server = self.GetServerCooldown(ServerId)
     if (server is None):
-      return
+      return False
 
     self.Database.delete(server)
     self.Database.commit()
+    return True
 
-  def GetExhaustedServers(self, OverrideTime:bool=False):
+  def GetExhaustedServers(self, OverrideTime:bool=False) -> list[ExhaustedServer]:
+    if (self.Database is None):
+      return []
+
     stmt = select(ExhaustedServer)
 
     if (OverrideTime is False):
@@ -554,24 +647,37 @@ class DatabaseDriver():
       ADayAgoTime:datetime = datetime.now(timezone.utc) - ADayAgo
       print(ADayAgoTime)
       stmt = stmt.where(ExhaustedServer.last_run.between(BeginningOfTime, ADayAgoTime))
-    return self.Database.scalars(stmt).all()
+    return list(self.Database.scalars(stmt).all())
 
-  def GetAllExhaustedServers(self):
-    return self.Database.scalars(select(ExhaustedServer)).all()
+  def GetAllExhaustedServers(self) -> list[ExhaustedServer]:
+    if (self.Database is None):
+      return []
+
+    return list(self.Database.scalars(select(ExhaustedServer)).all())
 
   ### Stats ###
   def GetNumBans(self) -> int:
+    if (self.Database is None):
+      return 0
+
     stmt = select(func.count()).select_from(Ban)
     return self.Database.scalars(stmt).first() or 0
 
   def GetNumActivatedServers(self) -> int:
+    if (self.Database is None):
+      return 0
+
     stmt = select(func.count()).select_from(Server).where(Server.activation_state==True)
     return self.Database.scalars(stmt).first() or 0
 
   def GetNumServers(self) -> int:
+    if (self.Database is None):
+      return 0
     stmt = select(func.count()).select_from(Server)
     return self.Database.scalars(stmt).first() or 0
 
   def GetNumExhaustedServers(self) -> int:
+    if (self.Database is None):
+      return 0
     stmt = select(func.count()).select_from(ExhaustedServer)
     return self.Database.scalars(stmt).first() or 0
