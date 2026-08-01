@@ -2,12 +2,12 @@
 # via multiprocessing
 from __future__ import annotations
 from Logger import Logger, LogLevel
-from multiprocessing.connection import Listener, Connection, Client, PipeConnection, wait
+from multiprocessing.connection import Listener, Connection, Client, wait
 from BotEnums import RelayMessageType
 from typing import TYPE_CHECKING, Any, cast
 from Config import Config
 import selectors, os, traceback
-type IPCConnection = Connection[Any, Any]|PipeConnection[Any, Any]
+type IPCConnection = Connection[Any, Any]
 
 if TYPE_CHECKING:
   from ScamGuard import ScamGuard
@@ -131,7 +131,7 @@ class RelayServer:
     # We just iterate through the objects in the list, each one is a
     # connection we need to accept.
     for i in AcceptEvents:
-      NewConnection = self.ListenSocket.accept()
+      NewConnection = cast(IPCConnection, self.ListenSocket.accept())
       Logger.Log(LogLevel.Verbose, "A new connection has been made!")
       self.Connections.append(NewConnection)
 
@@ -188,9 +188,9 @@ class RelayClient:
     self.FunctionRouter = {}
 
     if (UseUnixSockets()):
-      self.Connection = Client(LocationAddr, "AF_UNIX")
+      self.Connection = cast(IPCConnection, Client(LocationAddr, "AF_UNIX"))
     else:
-      self.Connection = Client(('localhost', ConfigData["RelayPort"]), "AF_INET")
+      self.Connection = cast(IPCConnection, Client(('localhost', ConfigData["RelayPort"]), "AF_INET"))
     self.BotID = InBotID
 
   def __del__(self):
