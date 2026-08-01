@@ -167,10 +167,3 @@ cython_debug/
 *.db
 apikeys*
 logs/
-
-# Pages ignores
-Gemfile
-Gemfile.lock
-_site/
-.jekyll-cache/
-/docs

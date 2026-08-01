@@ -24,10 +24,10 @@
 
 * Make sure that your code follows the general style of other files in the project, you'll notice some of the qwerks as you read. But in general:
     * Two spaces for indenting
-    * if condtionals are always wrapped in paratheses.
+    * if conditionals are always wrapped in parentheses.
     * We use title case for everything
     * Proper error handling
-    * Ususally variables are explicitly typed, unless they are a list.
+    * Usually variables are explicitly typed, unless they are a list.
 
 ### Want to implement a feature listed on the issues page?
 
@@ -39,7 +39,7 @@ If this issue is already assigned, please do not unassign the assignee without t
 
 Unless the changes were previously [issue tracked](https://theantiscamgroup.com/AntiScamBot/issues), then these changes will be likely not be accepted into the project. [Rails has good rational](https://github.com/rails/rails/pull/13771#issuecomment-32746700) as to why these changes can bog down a project.
 
-### Fix typos, gramatical errors on the website?
+### Fix typos, grammatical errors on the website?
 
 Usually these will be taken, but very not often.
 
