@@ -2,7 +2,7 @@
 
 This is a Discord bot that bans scammers who offer unsolicited commissions to users of a Discord server.
 
-These scammers are a scourge on our Discord communities. Unfortunately, unless they are banned in all relative servers, they’ll hop onto the next server and then attempt to scam people from there next.
+These scammers are a scourge on our Discord communities. Unfortunately, unless they are banned in all relative servers, they’ll hop onto the next server and then scam people there.
 
 To stop this from happening, this bot shares a ban list of known scammers to any servers it is activated in such that the scammers are unable to contact anyone.
 
@@ -18,7 +18,7 @@ This bot requires that you are using (at minimum) Python 3.11
 
 ### Environment Vars
 
-To start the bot locally, create a .env file in the current directory with the following environment variables:
+To start the bot locally, create a `.env` file in the current directory with the following environment variables:
 
 ```txt
 DISCORD_TOKEN="your discord bot token"
@@ -29,18 +29,9 @@ BACKUP_LOCATION="a path to a directory to store your backup sql file"
 DEVELOPMENT_MODE="true if you want to test without banning, false to ban people"
 ```
 
-Here is an example of a .env file.
+To get you started, you can copy the `.env.example` file and fill out the data from there.
 
-```txt
-DISCORD_TOKEN="0"
-DATABASE_FILE="database.db"
-CONFIG_FILE="config.json"
-API_KEYS="apikeys.json"
-BACKUP_LOCATION="backup/"
-DEVELOPMENT_MODE="true"
-```
-
-You can also have these environment variables set directly
+You can also have these configs set as environment variables in your runner.
 
 ### config.json
 
