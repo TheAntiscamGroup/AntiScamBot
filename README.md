@@ -14,7 +14,7 @@ You can read more on [the website here](https://scamguard.app/)!
 
 ## Configurations to Run the Bot
 
-This bot requires that you are using (at minimum) Python 3.11
+This bot requires that you are using (at minimum) Python 3.12
 
 ### Environment Vars
 
