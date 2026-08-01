@@ -14,6 +14,7 @@
     "ReportHandledTag": "handled",
     "ReportDuplicateTag": "duplicate",
     "AppEmbedThumbnail": "https://scamguard.app/assets/site-logo.png",
+    "ToolLink": "https://discord.com/oauth2/authorize?client_id=1443130827662823557",
     "UseSleep": false,
     "MaxBanFailures": 5,
     "UsingPosixSockets": false,

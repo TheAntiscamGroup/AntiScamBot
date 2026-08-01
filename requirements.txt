@@ -1,7 +1,6 @@
-coloredlogs
+coloredlogs==15.0.1
 discord.py==2.7.1
 python-dotenv==1.2.2
-sqlalchemy
-sqlalchemy.orm
+sqlalchemy==2.0.51
 logger_tt==1.7.5
-aiohttp
+aiohttp==3.14.3
