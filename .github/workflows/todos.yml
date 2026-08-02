@@ -1,0 +1,23 @@
+name: TODO Tracker
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  todos:
+    name: TODO Converter
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v6
+        name: Checkout
+      - name: Convert
+        uses: alstr/todo-to-issue-action@v5
+        with:
+            CLOSE_ISSUES: true
+            INSERT_ISSUE_URLS: false
+            AUTO_ASSIGN: false
