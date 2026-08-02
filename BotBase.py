@@ -79,6 +79,9 @@ class DiscordBot(discord.Client):
       self.ClientHandler = RelayClient(RelayLocation, self.BotID)
 
     Logger.Log(LogLevel.Verbose, f"Instance #{self.BotID} is setting up function registration")
+    # TODO: it would be great to use decorators here to register functions
+    # probably just dump everything to a table thats passed to client handler
+    
     # Register functions for handling basic client actions
     self.ClientHandler.RegisterFunction(RelayMessageType.BanUser, self.BanUser)
     self.ClientHandler.RegisterFunction(RelayMessageType.UnbanUser, self.UnbanUser)
@@ -106,6 +109,7 @@ class DiscordBot(discord.Client):
       await self.Commands.sync()
     else:
       # Remove the report and check commands from any control servers
+      # TODO: this may no longer work with latest versions of discord.py
       self.Commands.remove_command(GlobalCommands, guild=CommandControlServer) # pyright: ignore[reportArgumentType]
       await self.Commands.sync(guild=CommandControlServer)
       await self.Commands.sync()
@@ -209,6 +213,7 @@ class DiscordBot(discord.Client):
     return False
 
   async def ForceLeaveServer(self, ServerId:int):
+    # TODO: create wrapper for get_guild
     ServerToLeave:discord.Guild|None = self.get_guild(ServerId)
     if (ServerToLeave is not None):
       ServerInfoStr:str = self.GetServerInfoStr(ServerToLeave)
@@ -222,6 +227,7 @@ class DiscordBot(discord.Client):
 
   ### Discord Permission/Data Checking/Lookup ###
   async def GetServersWithElevatedPermissions(self, UserID:int, SkipActivated:bool):
+    # TODO: remove old activation code
     # This was used for the old /activate method before we had the remote activation feature
     # this path doesn't really get called anymore
     ServersWithPermissions = []
@@ -351,7 +357,9 @@ class DiscordBot(discord.Client):
     # Prevent ourselves from being added to a server we are already in.
     if (self.Database.IsInServer(server.id)):
       Logger.Log(LogLevel.Notice, f"Bot #{self.BotID} was attempted to be added to server {ServerStr} but already in there")
-      # TODO: Print a message to the user?
+      # TODO: Handle bot migration better
+      # Send a message, do a perms check and then if all checks out
+      # have the other bot leave
       await server.leave()
       return
 
@@ -470,6 +478,9 @@ Failed Copied Evidence Links:
 
   ### First Time Message Posting ###
   async def PostFirstTimeMessage(self, ServerId:int):
+    # TODO: extrapolate this function so channel queries are easier
+    # good for migration. doesn't need to be used for much else because
+    # we can pump the settings channel to post other messages
     CanCreatePrivateThread: bool = ConfigData["UseThreadsForWelcomeMessage"]
     Server: discord.Guild|None = self.get_guild(ServerId)
     if (Server is None):
@@ -679,6 +690,7 @@ Failed Copied Evidence Links:
     else:
       await self.DeleteWebhook(ServerID)
 
+  # TODO: document usage
   async def DeleteFutureMessage(self, Message:discord.WebhookMessage, time:float):
     try:
       await Message.delete(delay=time)
@@ -784,6 +796,7 @@ Failed Copied Evidence Links:
 
   ### Ban Handling ###
   async def ReprocessBans(self, ServerId:int, LastActions:int=0, HandlingCooldown:bool=False) -> BanResult:
+    # TODO: type mask discord.Guild|None
     Server:discord.Guild|None = self.get_guild(ServerId)
     if (Server is None):
       Logger.Log(LogLevel.Error, f"Could not look up the server {ServerId} while reprocessing bans")
