@@ -15,7 +15,7 @@ Messages:TextLibrary = TextLibrary()
 async def SendInteractionMessage(interaction:Interaction, message:str, delete_after:float=60.0, is_silent:bool=False):
   if (interaction.response.is_done()):
     ReturnMessage:WebhookMessage = await interaction.followup.send(message, ephemeral=True, silent=is_silent, wait=True)
-    Bot: BotType = GetBot(interaction)
+    Bot:BotType = GetBot(interaction)
     # Delete the message after a certain amount of time
     if (delete_after > 0.0):
       Bot.AddAsyncTask(Bot.DeleteFutureMessage(ReturnMessage, delete_after))

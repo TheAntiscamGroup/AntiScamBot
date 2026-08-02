@@ -7,9 +7,10 @@ from ScamReportModal import SubmitScamReport
 from BotServerSettings import ServerSettingsView
 from TextWrapper import TextLibrary
 from Config import Config
+from Types import BotType
 
 if TYPE_CHECKING:
-  from Types import OptionalDiscordPerson, BotType
+  from Types import OptionalDiscordPerson
 
 Messages:TextLibrary = TextLibrary()
 ConfigData:Config = Config()
