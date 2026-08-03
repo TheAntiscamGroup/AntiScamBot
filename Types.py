@@ -1,16 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from discord import TextChannel, User, Member
+from collections.abc import Coroutine
+from typing import Any, Callable
+from discord import Guild, TextChannel, User, Member, ForumChannel
 
-if TYPE_CHECKING:
-  from ScamGuard import ScamGuard
-  from BotBase import DiscordBot
-
-# this is hilariously valid because it uses annotations
-# we could probably just have it be of DiscordBot since ScamGuard inherits
-# but typing is silly.
-type BotType = 'DiscordBot|ScamGuard'
+type OptionalForum = ForumChannel|None
 type OptionalChannel = TextChannel|None
+type OptionalGuild = Guild|None
 type DiscordPerson = User|Member
 type OptionalDiscordMember = Member|None
 type OptionalDiscordPerson = DiscordPerson|None
+type AsyncTaskFunc = Coroutine[Any, Callable[..., Any], Any]
+type InstanceCallable = Callable[..., None|bool]
+type InstanceCallableArguments = dict[str, int|str|bool]

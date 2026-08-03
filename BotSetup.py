@@ -5,13 +5,14 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session
 from datetime import datetime
 from BotDatabaseSchema import Base, Migration, Ban, Server
+from collections.abc import Callable
 
 class DatabaseMigrator:
   # When the BotDatabaseSchema gets updated, update this value here and create a function that updates
   # from the last database version to this one. The naming scheme should match "upgrade_versionXtoY"
   # Database migrations apply linearly.
   DATABASE_VERSION:int=8
-  VersionMap={}
+  VersionMap: dict[int, Callable[..., None]]={}
   DatabaseCon:Engine
 
   def __init__(self):
@@ -71,7 +72,7 @@ class DatabaseMigrator:
     query = text('select * from banslist')
     banlist = session.execute(query)
 
-    newBanList = []
+    newBanList: list[Ban] = []
     for bans in banlist:
       currentTime = datetime.timestamp(datetime.strptime(bans[3], '%Y-%m-%d %H:%M:%S.%f'))
       newBan = Ban(
@@ -87,7 +88,7 @@ class DatabaseMigrator:
     query = text('select * from servers')
     serverlist = session.execute(query)
 
-    newServerList = []
+    newServerList: list[Server] = []
     for oldServer in serverlist:
       newServer = Server(
         bot_instance_id = oldServer[4],

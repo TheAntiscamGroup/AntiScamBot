@@ -4,11 +4,11 @@ from Logger import Logger, LogLevel
 from discord import Interaction, app_commands
 import traceback, re
 from TextWrapper import TextLibrary
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 from Utils import GetBot
 
 if TYPE_CHECKING:
-  from Types import BotType
+  from BotBase import DiscordBot
 
 UserIdReg = re.compile("\\<\\@([0-9]+)\\>")
 Messages:TextLibrary = TextLibrary()
@@ -16,9 +16,10 @@ Messages:TextLibrary = TextLibrary()
 # This transformer allows us to take in a discord id (as the default int is too small)
 # and properly convert it to a value that we can use to observe Discord data
 class BaseIdTransformer(app_commands.Transformer):
-  async def OnTransform(self, _: Interaction, TargetId:int) -> int:
+  async def OnTransform(self, interaction: Interaction, TargetId:int) -> int:
     return TargetId
 
+  @override
   async def transform(self, interaction: Interaction, value: str) -> int:
     # Capture any mention targets
     matches = UserIdReg.match(value)
@@ -37,8 +38,9 @@ class BaseIdTransformer(app_commands.Transformer):
 
 # This transformer checks to see if the given id is a real discord User.
 class TargetIdTransformer(BaseIdTransformer):
-  async def OnTransform(self, interaction: Interaction, TargetId:int) -> int:
-    Bot:BotType = GetBot(interaction)
+  @override
+  async def OnTransform(self, interaction:Interaction, TargetId:int) -> int:
+    Bot:DiscordBot = GetBot(interaction)
     if (await Bot.UserAccountExists(TargetId)):
       return TargetId
     else:

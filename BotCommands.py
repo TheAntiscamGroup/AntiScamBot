@@ -7,7 +7,7 @@ from ScamReportModal import SubmitScamReport
 from BotServerSettings import ServerSettingsView
 from TextWrapper import TextLibrary
 from Config import Config
-from Types import BotType
+from BotBase import DiscordBot
 
 if TYPE_CHECKING:
   from Types import OptionalDiscordPerson
@@ -17,8 +17,8 @@ ConfigData:Config = Config()
 
 @app_commands.guild_only()
 class GlobalScamCommands(app_commands.Group):
-  def GetInstance(self) -> BotType:
-    return cast(BotType, self.extras["instance"])
+  def GetInstance(self) -> DiscordBot:
+    return cast(DiscordBot, self.extras["instance"])
 
   def IsActivated(self, InteractionId:int) -> bool:
     return (self.GetInstance().Database.IsActivatedInServer(InteractionId))
@@ -49,7 +49,7 @@ class GlobalScamCommands(app_commands.Group):
   @app_commands.checks.has_permissions(ban_members=True)
   @app_commands.checks.cooldown(1, 5.0)
   async def ReportScam_Global(self, interaction:Interaction, target:app_commands.Transform[int, TargetIdTransformer]):
-    if (interaction.guild_id == ConfigData["ControlServer"]):
+    if (interaction.guild_id == ConfigData.get("ControlServer", -1)):
       await interaction.response.send_message(Messages["cmds_error"]["in_control_server"], ephemeral=True, delete_after=5.0)
       return
 
@@ -94,7 +94,7 @@ class GlobalScamCommands(app_commands.Group):
   @app_commands.checks.has_permissions(ban_members=True)
   @app_commands.checks.cooldown(1, 5.0)
   async def SetupScamGuard_Global(self, interaction:Interaction):
-    if (interaction.guild_id == ConfigData["ControlServer"]):
+    if (interaction.guild_id == ConfigData.get("ControlServer", -1)):
       await interaction.response.send_message(Messages["cmds_error"]["in_control_server"], ephemeral=True, delete_after=5.0)
       return
 
@@ -113,7 +113,8 @@ class GlobalScamCommands(app_commands.Group):
   @app_commands.describe(whisper='If the link should be not whispered (only changeable if you are a mod)')
   @app_commands.checks.cooldown(1, 2.0)
   async def InstallScamGuardUser_Global(self, interaction:Interaction, whisper:bool):
-    if (not ConfigData.IsValid("ToolLink", str)):
+    ToolLinkURL: str = ConfigData.get("ToolLink", "")
+    if (len(ToolLinkURL) < 4):
       return
 
     # Always be a whisper unless you are an admin/mod
@@ -124,13 +125,13 @@ class GlobalScamCommands(app_commands.Group):
       if (interaction.channel.permissions_for(cast(Member, interaction.user)).ban_members):
         MakeWhisper = whisper
 
-    await interaction.response.send_message(ConfigData["ToolLink"], delete_after=300.0, ephemeral=MakeWhisper)
+    await interaction.response.send_message(ToolLinkURL, delete_after=300.0, ephemeral=MakeWhisper)
 
   @app_commands.command(name="config", description="Set ScamGuard Settings")
   @app_commands.checks.has_permissions(ban_members=True)
   @app_commands.checks.cooldown(1, 5.0)
   async def ConfigScamGuard_Global(self, interaction:Interaction):
-    if (interaction.guild_id == ConfigData["ControlServer"]):
+    if (interaction.guild_id == ConfigData.get("ControlServer", -1)):
       await interaction.response.send_message(Messages["cmds_error"]["in_control_server"], ephemeral=True, delete_after=5.0)
       return
 

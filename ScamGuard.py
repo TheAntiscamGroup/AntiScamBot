@@ -2,7 +2,7 @@
 # Such as the host system that shares commands/messages to sub-instances and things like backup.
 # It should not handle any recv instructions from ServerHandler except for requests by sub-instances.
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast, final, override
 from Logger import Logger, LogLevel
 from BotEnums import BanResult, BanAction, ModerationAction
 from Config import Config
@@ -22,22 +22,23 @@ __all__ = ["ScamGuard"]
 
 ConfigData:Config=Config()
 
+@final
 class ScamGuard(DiscordBot):
   ServerHandler: RelayServer
   HasStartedInstances:bool = False
-  SubProcess={}
+  SubProcess:dict[int, Process|None]={}
 
   ### Initialization ###
   def __init__(self, AssignedBotID:int):
     self.ServerHandler = RelayServer(AssignedBotID, self)
     super().__init__(self.ServerHandler.GetFileLocation(), AssignedBotID)
 
+  @override
   async def setup_hook(self):
-    # TODO: Make a fancy table for this in the future
-    if (ConfigData["RunBackupEveryXHours"] > 0):
+    if (ConfigData.get("RunBackupEveryXHours", 0.0) > 0.0):
       self.PeriodicBackup.start()
 
-    if (ConfigData["RunIdleCleanupEveryXHours"] > 0):
+    if (ConfigData.get("RunIdleCleanupEveryXHours", 0.0) > 0.0):
       self.PeriodicLeave.start()
 
     self.HandleListenRelay.start()
@@ -51,15 +52,12 @@ class ScamGuard(DiscordBot):
 
   ### Task Interval Handling ###
   def ConfigBackupInterval(self):
-    BackupHours:float = float(ConfigData["RunBackupEveryXHours"])
+    BackupHours:float = ConfigData.get("RunBackupEveryXHours", 15.0)
     self.PeriodicBackup.change_interval(seconds=0.0, minutes=0.0, hours=BackupHours) # pyright: ignore[reportAttributeAccessIssue]
 
   def ConfigLeaveInterval(self):
-    LeaveHours:float = float(ConfigData["RunIdleCleanupEveryXHours"])
-    self.PeriodicLeave.change_interval(seconds=0.0, minutes=0.0, hours=LeaveHours) # pyright: ignore[reportAttributeAccessIssue]
-
-  def RetryTaskInterval(self, task):
-    task.change_interval(seconds=0.0, minutes=5.0, hours=0.0)
+    LeaveHours:float = ConfigData.get("RunIdleCleanupEveryXHours", 23.0)
+    self.PeriodicLeave.change_interval(seconds=0.0, minutes=0.0, hours=LeaveHours)  # pyright: ignore[reportAttributeAccessIssue]
 
   ### Backup handling ###
   # By default, this runs every 5 minutes, however upon loading configurations, this will update the
@@ -80,7 +78,7 @@ class ScamGuard(DiscordBot):
       for itm in self.AsyncTasks:
         if not itm.get_name() in SafeAsyncTaskNames:
           Logger.Log(LogLevel.Warn, "There are currently async tasks in progress, will try backup again in 5 minutes...")
-          self.RetryTaskInterval(self.PeriodicBackup)
+          self.PeriodicBackup.change_interval(seconds=0.0, minutes=5.0, hours=0.0)  # pyright: ignore[reportAttributeAccessIssue]
           return
 
     # If we currently have the minutes value set, then we need to make sure we get back onto the right track
@@ -101,19 +99,19 @@ class ScamGuard(DiscordBot):
 
     # If we are processing any async tasks, do not clean up the deactivated table
     if (len(self.AsyncTasks) > 0):
-      self.RetryTaskInterval(self.PeriodicLeave)
+      self.PeriodicLeave.change_interval(seconds=0.0, minutes=5.0, hours=0.0)  # pyright: ignore[reportAttributeAccessIssue]
       return
 
     # If the instances code hasn't been able to start, wait for when it's ready again.
     if (not self.HasStartedInstances):
-      self.RetryTaskInterval(self.PeriodicLeave)
+      self.PeriodicLeave.change_interval(seconds=0.0, minutes=5.0, hours=0.0)  # pyright: ignore[reportAttributeAccessIssue]
       return
 
     await self.RunPeriodicLeave(False)
 
   async def RunPeriodicLeave(self, DryRun:bool):
     # If this config is less than or equal to 0, then we don't execute the task
-    InactiveInstanceWindow:int = ConfigData["InactiveServerDayWindow"]
+    InactiveInstanceWindow:int = ConfigData.get("InactiveServerDayWindow", 3)
     if (InactiveInstanceWindow <= 0):
       return
 
@@ -173,10 +171,12 @@ class ScamGuard(DiscordBot):
     await self.wait_until_ready()
 
   ### Config Handling ###
+  @override
   def ProcessConfig(self, ShouldReload:bool):
     super().ProcessConfig(ShouldReload)
 
   ### Discord Eventing ###
+  @override
   async def InitializeBotRuntime(self):
     await super().InitializeBotRuntime()
     await self.StartAllInstances()
@@ -188,18 +188,28 @@ class ScamGuard(DiscordBot):
       return True
     except Exception as ex:
       # Only print out exceptions if we're the control server, silently fail elsewhere.
-      if (thread.guild.id == ConfigData["ControlServer"]):
+      ControlServerID:int = ConfigData.get("ControlServer", -1)
+      if (ControlServerID > 0 and thread.guild.id == ControlServerID):
         Logger.Log(LogLevel.Warn, f"Unable to leave the thread {thread.id}, encountered exception {str(ex)}")
     return False
 
   async def on_thread_join(self, thread: Thread):
+    ControlServerID:int = ConfigData.get("ControlServer", -1)
+    ExternalReportID:int = ConfigData.get("ExternalReportChannel", -1)
+    InviteUserID:int = ConfigData.get("ThreadInviteUser", -1)
+
+    # Leave all threads if we have no proper configurations
+    if (ControlServerID < 0 or ExternalReportID < 0 or InviteUserID < 0):
+      await self.LeaveThread(thread)
+      return
+
     # Only handle in the control server
-    if (thread.guild.id == ConfigData["ControlServer"]):
+    if (ControlServerID > 0 and thread.guild.id == ControlServerID):
       # and in the external reports channel
-      if (thread.parent_id == ConfigData["ExternalReportChannel"]):
+      if (ExternalReportID > 0 and thread.parent_id == ExternalReportID):
         async for message in thread.history(limit=2, oldest_first=True):
           # leave the thread if we were invited by someone else.
-          if (message.author.id != ConfigData["ThreadInviteUser"]):
+          if (message.author.id != InviteUserID):
             continue
 
           # Check to see if we have content, which means it's our mentionable
@@ -233,8 +243,9 @@ class ScamGuard(DiscordBot):
 
     # Spin up all the subinstances of the other bot clients
     AllInstances = Config.GetAllSubTokens()
-    for InstanceID in AllInstances:
-      await self.StartInstance(int(InstanceID))
+    if (AllInstances is not None):
+      for InstanceID in AllInstances:
+        await self.StartInstance(int(InstanceID))
 
     self.HasStartedInstances = True
 
@@ -255,11 +266,12 @@ class ScamGuard(DiscordBot):
 
     Logger.Log(LogLevel.Log, f"Spinning up instance #{InstanceID}")
     self.SubProcess[InstanceID] = Process(target=CreateBotProcess, args=(RelayFileAddr, InstanceID), name=f'Bot-{InstanceID}')
-    self.SubProcess[InstanceID].start()
+    # This is stupid and not necessary, but pyright will complain otherwise
+    cast(Process, self.SubProcess[InstanceID]).start()
 
   async def StopInstanceIfExists(self, InstanceID:int):
     if (InstanceID in self.SubProcess and self.SubProcess[InstanceID] is not None):
-      ExistingProcess:Process = self.SubProcess[InstanceID]
+      ExistingProcess:Process = cast(Process, self.SubProcess[InstanceID])
       ExistingProcess.terminate()
       try:
         # wait for the process to terminate
@@ -287,12 +299,7 @@ class ScamGuard(DiscordBot):
         NewMessage = await self.AnnouncementChannel.send(embed=InMessage)
       else:
         NewMessage = await self.AnnouncementChannel.send(str(InMessage))
-      if (NewMessage is not None):
-        await NewMessage.publish()
-      elif (type(InMessage) == str):
-        Logger.Log(LogLevel.Error, f"Could not publish message {str(InMessage)}! Did not send!")
-      else:
-        Logger.Log(LogLevel.Error, f"Could not publish message, as it did not send!")
+      await NewMessage.publish()
     except HTTPException as ex:
       Logger.Log(LogLevel.Log, f"WARN: Unable to publish message to announcement channel {str(ex)}")
 
@@ -316,8 +323,7 @@ class ScamGuard(DiscordBot):
       return DatabaseAction
 
     # Queue up the announcement
-    if (NewAnnouncement is not None):
-      self.AddAsyncTask(self.CreateBanAnnouncement(NewAnnouncement, Action))
+    self.AddAsyncTask(self.CreateBanAnnouncement(NewAnnouncement, Action))
     # Queue up the action
     self.AddAsyncTask(self.PropagateActionToServers(TargetId, Sender, Action, Reason))
 

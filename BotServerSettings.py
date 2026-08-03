@@ -1,18 +1,21 @@
 from __future__ import annotations
-from discord import ui, Guild, ButtonStyle, Interaction, TextChannel, Permissions
+from collections.abc import Awaitable
+from discord import ui, ButtonStyle, Interaction, Permissions
 from ModalHelpers import YesNoSelector, SelfDeletingView, ModChannelSelector
 from BotDatabaseSchema import Server
 from Logger import Logger, LogLevel
 from TextWrapper import TextLibrary
 from Config import Config
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Callable, cast, override
 from Utils import GetBot
 from Types import OptionalChannel
 
 if TYPE_CHECKING:
-  from Types import OptionalDiscordMember, OptionalDiscordPerson, BotType
+  from Types import OptionalDiscordMember, OptionalDiscordPerson, OptionalGuild
+  from BotBase import DiscordBot
 
 Messages:TextLibrary = TextLibrary()
+type ServerSettingsCallback = Callable[[BotSettingsPayload], Awaitable[None]]
 
 class BotSettingsPayload:
   InteractiveUser:OptionalDiscordPerson = None
@@ -20,8 +23,8 @@ class BotSettingsPayload:
   KickSusRequired:bool = False
 
   # These settings should get pulled from the db
-  Server:Guild|None = None
-  MessageChannel:TextChannel|None = None
+  Server:OptionalGuild = None
+  MessageChannel:OptionalChannel = None
   WantsWebhooks:bool = False
   KickSusUsers:bool = False
 
@@ -46,7 +49,7 @@ class BotSettingsPayload:
 
     return self.MessageChannel.id
 
-  def LoadFromDB(self, BotInstance: BotType):
+  def LoadFromDB(self, BotInstance: DiscordBot):
     DB = BotInstance.Database
     ServerInfo:Server|None = DB.GetServerInfo(self.GetServerID())
     if (ServerInfo is None):
@@ -65,28 +68,36 @@ class BotSettingsPayload:
       self.MessageChannel = BotInstance.GetChannelById(ServerInfo.message_channel)
 
 class InstallWebhookSelector(YesNoSelector):
+  @override
   def GetYesDescription(self) -> str:
     return Messages["selector"]["webhook"]["yes"]
 
+  @override
   def GetNoDescription(self) -> str:
     return Messages["selector"]["webhook"]["no"]
 
+  @override
   def GetPlaceholder(self) -> str:
     return Messages["selector"]["webhook"]["placeholder"]
 
+  @override
   def SetNotRequiredIfValueSet(self) -> bool:
     return True
 
 class KickSuspiciousUsersSelector(YesNoSelector):
+  @override
   def GetYesDescription(self) -> str:
     return Messages["selector"]["kick"]["yes"]
 
+  @override
   def GetNoDescription(self) -> str:
     return Messages["selector"]["kick"]["no"]
 
+  @override
   def GetPlaceholder(self) -> str:
     return Messages["selector"]["kick"]["placeholder"]
 
+  @override
   def SetNotRequiredIfValueSet(self) -> bool:
     return True
 
@@ -94,10 +105,11 @@ class ServerSettingsView(SelfDeletingView):
   ChannelSelect:ModChannelSelector
   WebhookSelector:InstallWebhookSelector|None = None
   SuspiciousUserKicks:KickSuspiciousUsersSelector|None = None
-  CallbackFunction = None
+  CallbackFunction:ServerSettingsCallback
   Payload:BotSettingsPayload
+  HasInteracted:bool=False
 
-  def __init__(self, InCB, interaction: Interaction):
+  def __init__(self, InCB:ServerSettingsCallback, interaction:Interaction):
     super().__init__()
     ConfigData:Config = Config()
 
@@ -114,13 +126,13 @@ class ServerSettingsView(SelfDeletingView):
 
     self.add_item(self.ChannelSelect)
 
-    if (ConfigData["AllowWebhookInstall"]):
+    if (ConfigData.get("AllowWebhookInstall", True)):
       self.WebhookSelector = InstallWebhookSelector(RowPos=1)
       if (not self.Payload.WebHookRequired):
         self.WebhookSelector.SetCurrentValue(self.Payload.WantsWebhooks)
       self.add_item(self.WebhookSelector)
 
-    if (ConfigData["AllowSuspiciousUserKicks"]):
+    if (ConfigData.get("AllowSuspiciousUserKicks", False)):
       self.SuspiciousUserKicks = KickSuspiciousUsersSelector(RowPos=2)
       if (not self.Payload.KickSusRequired):
         self.SuspiciousUserKicks.SetCurrentValue(self.Payload.KickSusUsers)
@@ -129,7 +141,7 @@ class ServerSettingsView(SelfDeletingView):
     self.CallbackFunction = InCB
 
   @ui.button(label="Confirm Settings", style=ButtonStyle.success, row=4)
-  async def setup(self, interaction: Interaction, _: ui.Button):
+  async def setup(self, interaction: Interaction, button: ui.Button[ui.view.BaseView]):
     # Couple of quick reference settings
     Bot = GetBot(interaction)
     DB = Bot.Database
@@ -141,7 +153,7 @@ class ServerSettingsView(SelfDeletingView):
     ChannelSelectChanged:bool = False
 
     # Check if we can install webhooks
-    if (ConfigData["AllowWebhookInstall"] and self.WebhookSelector is not None):
+    if (ConfigData.get("AllowWebhookInstall", True) and self.WebhookSelector is not None):
       MadeWebhookSelection:bool = self.WebhookSelector.HasValue()
       if (MadeWebhookSelection):
         self.Payload.WantsWebhooks = self.WebhookSelector.GetValue() or False
@@ -210,10 +222,6 @@ class ServerSettingsView(SelfDeletingView):
     self.HasInteracted = True
 
     # Push a message to the activation request channel
-    if (self.CallbackFunction is None):
-      Logger.Log(LogLevel.Error, "Somehow the callback function on the server settings is None...")
-      return
-
     await self.CallbackFunction(self.Payload)
 
     # Respond to the user and kill the interactions

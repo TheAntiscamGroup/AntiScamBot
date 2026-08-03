@@ -1,0 +1,26 @@
+{
+  "include": [
+    "*.py"
+  ],
+
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".runtime/**",
+    ".github/**"
+  ],
+
+  "reportMissingImports": "error",
+  "reportUnusedCallResult": false,
+  "reportMissingTypeStubs": false,
+  "reportAny": false,
+  "reportExplicitAny": false,
+  "reportDeprecated": false,
+  "reportUnreachable": "hint",
+  "reportImportCycles": "information",
+  "reportUnusedParameter": "hint",
+  "reportUnnecessaryTypeIgnoreComment": false,
+
+  "pythonVersion": "3.13",
+  "pythonPlatform": "Linux",
+}

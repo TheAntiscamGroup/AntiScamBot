@@ -5,7 +5,7 @@ from BotEnums import BanAction, ModerationAction
 from discord import ui, ButtonStyle, Interaction, ForumTag, Thread, ForumChannel
 from ModalHelpers import SelfDeletingView
 from Config import Config
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 if TYPE_CHECKING:
   from ScamGuard import ScamGuard
@@ -17,27 +17,30 @@ class ConfirmBan(SelfDeletingView):
   TargetId:int = 0
   TargetReason:str|None
   BotInstance:ScamGuard
+  HasInteracted:bool
 
   def __init__(self, target:int, bot: ScamGuard, reason:str|None=None):
     super().__init__(ViewTimeout=90.0)
     self.TargetId = target
     self.BotInstance = bot
+    self.HasInteracted = False
     self.TargetReason = reason
 
+  @override
   async def on_cancel(self, interaction:Interaction):
     await interaction.response.send_message("This action was cancelled.", ephemeral=True, delete_after=10.0)
 
   async def AddTag(self, thread:Thread, Action:BanAction):
     # Attempt to set the forum handled/duplicate tag because this is really annoying otherwise
     try:
-      TagToApply:ForumTag
+      TagToApply:ForumTag|None = None
       TagToFind:str = ""
 
       # What kind of tag are we looking for
       if (Action == BanAction.Banned and ConfigData.IsValid("ReportHandledTag", str)):
-        TagToFind = ConfigData["ReportHandledTag"]
+        TagToFind = ConfigData.get("ReportHandledTag", "")
       elif (Action == BanAction.Duplicate and ConfigData.IsValid("ReportDuplicateTag", str)):
-        TagToFind = ConfigData["ReportDuplicateTag"]
+        TagToFind = ConfigData.get("ReportDuplicateTag", "")
       else:
         return
 
@@ -49,7 +52,7 @@ class ConfirmBan(SelfDeletingView):
           break
 
       # Check to see if the tag is not already applied.
-      if (TagToApply not in thread.applied_tags):
+      if (TagToApply and TagToApply not in thread.applied_tags):
         await thread.add_tags(TagToApply, reason=f"Adding tag '{TagToFind}'")
       else:
         return
@@ -57,16 +60,13 @@ class ConfirmBan(SelfDeletingView):
       Logger.Log(LogLevel.Warn, f"Could not set the handled tag in {thread.id} {str(ex)}")
 
   @ui.button(label="Confirm Ban", style=ButtonStyle.danger, row=4)
-  async def confirm(self, interaction: Interaction, _: ui.Button):
+  async def confirm(self, interaction: Interaction, button: ui.Button[ui.view.BaseView]):
     # Prevent pressing the button multiple times during asynchronous action.
     if (self.HasInteracted):
       return
 
     Sender:DiscordPerson = interaction.user
     ResponseMsg: str = ""
-    if (self.BotInstance is None):
-      Logger.Log(LogLevel.Error, "ConfirmBan view has an invalid bot reference!!")
-      return
 
     await interaction.response.defer(thinking=True)
     self.HasInteracted = True

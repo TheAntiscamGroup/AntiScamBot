@@ -1,4 +1,7 @@
 # Database driver for ScamGuard
+from __future__ import annotations
+from collections.abc import Sequence
+from discord import Guild
 from BotEnums import BanAction, ModerationAction
 from Logger import Logger, LogLevel
 from Config import Config
@@ -16,7 +19,7 @@ class DatabaseDriver():
   Database:Session|None = None
 
   ### Initialization/Teardown ###
-  def __init__(self, *args, **kwargs):
+  def __init__(self, *args, **kwargs):  # pyright: ignore[reportUnknownParameterType, reportMissingParameterType]
     self.Open()
 
   def __del__(self):
@@ -84,7 +87,7 @@ class DatabaseDriver():
       return
 
     BackupsCleaned:int = 0
-    OlderThan:float = ConfigData["RemoveDaysOldBackups"]
+    OlderThan:float = ConfigData.get("RemoveDaysOldBackups", 3.0)
     BackupLocation = os.path.abspath(Config.GetBackupLocation())
     FileList = os.listdir(BackupLocation)
     FilesOlderThan:float = time.time() - OlderThan * 86400
@@ -100,12 +103,12 @@ class DatabaseDriver():
     Logger.Log(LogLevel.Log, f"Cleaned up {BackupsCleaned} backups older than {OlderThan} days!")
 
   ### Adding/Updating/Removing Server Entries ###
-  def AddBotGuilds(self, ListOwnerAndServerTuples, BotID:int):
+  def AddBotGuilds(self, ListServers:list[Guild], BotID:int):
     if (self.Database is None):
       return
 
     BotAdditionUpdates:list[Server] = []
-    for Entry in ListOwnerAndServerTuples:
+    for Entry in ListServers:
       server = Server(
         bot_instance_id = BotID,
         discord_server_id = Entry.id,
@@ -281,14 +284,14 @@ class DatabaseDriver():
     return True
 
   ### Reconcile Servers ###
-  def ReconcileServers(self, Servers, BotId:int):
+  def ReconcileServers(self, Servers:Sequence[Guild], BotId:int):
     if (self.Database is None):
       return
-    NewAdditions = []
+    NewAdditions:list[Guild] = []
     # Discord Guild IDs that we will later use to remove
     ServersIn:list[int] = []
     # Control server id
-    ControlServerID:int = ConfigData["ControlServer"]
+    ControlServerID:int = ConfigData.get("ControlServer", -1)
     # Loop through all the servers we are in and grab their guild ids
     for DiscordServer in Servers:
       # Check to see if we know about this server already.
@@ -450,8 +453,6 @@ class DatabaseDriver():
       return
 
     stmt = select(Ban).where(Ban.discord_user_id==TargetId)
-    if (stmt is None):
-      return
 
     banToChange = self.Database.scalars(stmt).first()
     if (banToChange is None):
@@ -558,14 +559,14 @@ class DatabaseDriver():
         return self.GetAllServers(True, OfInstance, True)
       case ModerationAction.Kick:
         return self.GetAllServers(True, OfInstance, False, True)
-
-    return []
+      case _:
+        return []
 
   def GetAllDeactivatedServers(self) -> list[Server]:
     if (self.Database is None):
       return []
 
-    ControlServerID:int = ConfigData["ControlServer"]
+    ControlServerID:int = ConfigData.get("ControlServer",-1)
     # Always ignore the control server
     stmt = select(Server).where(Server.activation_state==False).where(Server.discord_server_id!=ControlServerID)
 
@@ -610,9 +611,9 @@ class DatabaseDriver():
     # Create if it doesn't exist.
     if (exhaustedUpdate is None):
       exhaustedUpdate = ExhaustedServer()
-      exhaustedUpdate.discord_server_id = ServerId
+      exhaustedUpdate.discord_server_id = str(ServerId)
 
-    if (exhaustedUpdate.current_pos is not None and exhaustedUpdate.current_pos > 0):
+    if (exhaustedUpdate.current_pos > 0):
       exhaustedUpdate.current_pos = exhaustedUpdate.current_pos + NumCompleted
     else:
       exhaustedUpdate.current_pos = NumCompleted
@@ -641,7 +642,7 @@ class DatabaseDriver():
     stmt = select(ExhaustedServer)
 
     if (OverrideTime is False):
-      CooldownWaitTime:int = ConfigData["CooldownWaitInHours"]
+      CooldownWaitTime:int = ConfigData.get("CooldownWaitInHours", 24)
       BeginningOfTime:datetime = datetime.fromtimestamp(0)
       ADayAgo:timedelta = timedelta(hours=CooldownWaitTime)
       ADayAgoTime:datetime = datetime.now(timezone.utc) - ADayAgo

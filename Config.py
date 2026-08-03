@@ -1,16 +1,22 @@
 # Config singleton for loading configuration data from a json file
+from __future__ import annotations
 import os, copy, json
-from typing import Any, cast
+from typing import Any, Self, TypeVar, cast, get_args, override
 from dotenv import load_dotenv
 from Logger import LogLevel, Logger
 
 load_dotenv()
 
+type ConfigValues = int|bool|str|float|list[int]
+SafeGetRet = TypeVar('SafeGetRet', str,list[int],float,bool,int)
+type SubInstanceValues = dict[str, str|None]|None
+
 class Config():
   __HasLoaded:bool = False
-  def __new__(cls):
+  __InternalData:dict[str, ConfigValues] = {}
+  def __new__(cls) -> Self|'Config':
     if not hasattr(cls, 'instance'):
-      cls.instance = super(Config, cls).__new__(cls)
+      cls.instance:'Config' = super(Config, cls).__new__(cls)
     return cls.instance
 
   def __init__(self):
@@ -20,12 +26,9 @@ class Config():
     if (self.__HasLoaded):
       return
 
-    Data = {}
-
     with open(self.GetConfigFile(), "r") as config_file:
-      Data = json.load(config_file)
+      self.__InternalData = json.load(config_file)
 
-    self.__dict__ = Data
     self.__HasLoaded = True
     Logger.Log(LogLevel.Notice, "Configuration Loaded!")
 
@@ -34,22 +37,25 @@ class Config():
     with open(self.GetConfigFile(), "wt") as config_file:
       json.dump(StagingSave, config_file, indent=3)
 
-  def __getitem__(self, item):
-     return self.__dict__[item]
+  def get(self, item:str, default:SafeGetRet) -> SafeGetRet:
+    if (self.IsValid(item, ExpectType=get_args(type)[0])):
+      return cast(SafeGetRet, self.__InternalData[item])
+
+    return default
 
   def IsValid(self, Key:str, ExpectType:type[Any]) -> bool:
     try:
-      EntryValue:Any = self[Key]
+      EntryValue:Any = self.__InternalData[Key]
       if (not isinstance(EntryValue, ExpectType)):
         return False
 
       if (type(EntryValue) is int):
-        if (cast(int, EntryValue) <= 0):
+        if (EntryValue <= 0):
           return False
         else:
           return True
       elif (type(EntryValue) is str):
-        if (len(cast(str, EntryValue)) == 0):
+        if (len(EntryValue) == 0):
           return False
 
         return True
@@ -58,9 +64,9 @@ class Config():
       return False
 
   @staticmethod
-  def GetAllSubTokens():
+  def GetAllSubTokens() -> SubInstanceValues:
     if (not os.path.exists(Config.GetAPIKeysFile())):
-      return {}
+      return None
 
     with open(Config.GetAPIKeysFile(), "r") as crypto_file:
       return json.load(crypto_file)
@@ -70,15 +76,20 @@ class Config():
     if (ForInstance <= 0):
       return os.getenv("DISCORD_TOKEN") or ""
     else:
-      CryptoKeys = Config.GetAllSubTokens()
-      InstanceStr:str = str(ForInstance)
-      if (CryptoKeys[InstanceStr] is None):
+      CryptoKeys:SubInstanceValues = Config.GetAllSubTokens()
+      if (CryptoKeys is None):
         return ""
-      return CryptoKeys[InstanceStr]
+      InstanceStr:str = str(ForInstance)
+      InstanceVal:str|None = CryptoKeys[InstanceStr]
+      if (InstanceVal is None):
+        return ""
+      return InstanceVal
 
   @staticmethod
   def GetNumberOfInstances() -> int:
-    CryptoKeys = Config.GetAllSubTokens()
+    CryptoKeys: SubInstanceValues = Config.GetAllSubTokens()
+    if (CryptoKeys is None):
+      return 0
     return len(CryptoKeys)
 
   @staticmethod
@@ -109,7 +120,8 @@ class Config():
     else:
       return True
 
-  def __str__(self):
+  @override
+  def __str__(self) -> str:
     return f"{str(self.__dict__)}"
 
   def Dump(self):

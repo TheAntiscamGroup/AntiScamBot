@@ -1,31 +1,32 @@
 # A discord view for handling server activations
 from __future__ import annotations
-from discord import ui, ButtonStyle, Interaction, Colour, Embed, Guild, TextChannel
+from discord import ui, ButtonStyle, Interaction, Colour, Embed, Guild
 from Config import Config
 from Logger import Logger, LogLevel
 from BotServerSettings import ServerSettingsView, BotSettingsPayload
 from ModalHelpers import SelfDeletingView
 from TextWrapper import TextLibrary
 from Utils import GetBot
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 if TYPE_CHECKING:
-  from Types import BotType
+  from BotBase import DiscordBot
+  from Types import OptionalChannel, OptionalGuild
 
 Messages:TextLibrary = TextLibrary()
 ConfigData:Config = Config()
 
 class ScamGuardServerSetup():
-  BotInstance:BotType
+  BotInstance:DiscordBot
 
-  def __init__(self, Bot:BotType) -> None:
+  def __init__(self, Bot:DiscordBot) -> None:
     self.BotInstance = Bot
 
-  async def CheckForBotConflicts(self, InServer:None|Guild) -> bool:
+  async def CheckForBotConflicts(self, InServer:OptionalGuild) -> bool:
     if (InServer is None):
       return False
 
-    BotConflicts = ConfigData["ConflictingBots"]
+    BotConflicts:list[int] = ConfigData.get("ConflictingBots", [0])
     for DiscordBotId in BotConflicts:
       if (await self.BotInstance.LookupMember(DiscordBotId, InServer) is not None):
         return True
@@ -33,10 +34,6 @@ class ScamGuardServerSetup():
     return False
 
   async def OpenServerSetupModel(self, interaction:Interaction):
-    if (self.BotInstance is None):
-      Logger.Log(LogLevel.Error, "Failed to get the bot instance during ScamGuard setup")
-      return
-
     await interaction.response.defer(ephemeral=True, thinking=True)
     NumBans:int = self.BotInstance.Database.GetNumBans()
 
@@ -68,9 +65,6 @@ class ScamGuardServerSetup():
   async def PushActivation(self, Payload:BotSettingsPayload):
     ServerID:int = Payload.GetServerID()
     UserID:int = Payload.GetUserID()
-    if (self.BotInstance is None):
-      Logger.Log(LogLevel.Error, "Failed to get the bot instance during ScamGuard setup")
-      return
 
     ServerInstance:int|None = self.BotInstance.Database.GetBotIdForServer(ServerID)
     if (ServerInstance is None):
@@ -86,10 +80,6 @@ class ScamGuardServerSetup():
     await self.BotInstance.ActivateServerInstance(UserID, ServerID)
 
   async def SendActivationRequest(self, Payload:BotSettingsPayload):
-    if (self.BotInstance is None):
-      Logger.Log(LogLevel.Error, "Somehow we do not know what our bot instance is...")
-      return
-
     # If the server is already activated then do nothing more.
     if (self.BotInstance.Database.IsActivatedInServer(Payload.GetServerID())):
       Logger.Log(LogLevel.Warn,
@@ -97,7 +87,7 @@ class ScamGuardServerSetup():
       return
 
     # If we don't require moderation for activation approval
-    if (ConfigData["RequireActivationApproval"] == False):
+    if (ConfigData.get("RequireActivationApproval", True) == False):
       Logger.Log(LogLevel.Notice, f"Attempting to activate a server without approval necessary!")
       await self.PushActivation(Payload)
       return
@@ -127,6 +117,7 @@ class ScamGuardServerSetup():
 class ServerActivationApproval(SelfDeletingView):
   Parent: ScamGuardServerSetup
   Payload:BotSettingsPayload
+  HasInteracted:bool = False
 
   def __init__(self, Parent: ScamGuardServerSetup, InPayload:BotSettingsPayload):
     self.Parent = Parent
@@ -135,7 +126,7 @@ class ServerActivationApproval(SelfDeletingView):
     super().__init__(ViewTimeout=None)
 
   @ui.button(label="Approve", style=ButtonStyle.success, row=4)
-  async def setup(self, interaction:Interaction, _:ui.Button):
+  async def setup(self, interaction:Interaction, button:ui.Button[ui.view.BaseView]):
     self.HasInteracted = True
     Bot = GetBot(interaction)
     ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
@@ -144,7 +135,7 @@ class ServerActivationApproval(SelfDeletingView):
     await self.StopInteractions()
 
   @ui.button(label="Deny with Message", style=ButtonStyle.grey, row=4)
-  async def deny_activation(self, interaction:Interaction, _:ui.Button):
+  async def deny_activation(self, interaction:Interaction, button:ui.Button[ui.view.BaseView]):
     self.HasInteracted = True
     ServerID:int = self.Payload.GetServerID()
     Bot = GetBot(interaction)
@@ -152,7 +143,7 @@ class ServerActivationApproval(SelfDeletingView):
 
     await interaction.response.send_message(f"Activation denied for server {ServerIDStr}.")
 
-    DiscordChannel:TextChannel|None = self.Payload.MessageChannel
+    DiscordChannel:OptionalChannel = self.Payload.MessageChannel
     if (DiscordChannel is None):
       Logger.Log(LogLevel.Error, f"Could not resolve the channel {self.Payload.GetMessageID()} for server {ServerIDStr} to post activation deny message in")
       return
@@ -164,7 +155,7 @@ class ServerActivationApproval(SelfDeletingView):
     await self.StopInteractions()
 
   @ui.button(label="Silently Leave Server", style=ButtonStyle.danger, row=4)
-  async def force_leave(self, interaction:Interaction, _:ui.Button):
+  async def force_leave(self, interaction:Interaction, button:ui.Button[ui.view.BaseView]):
     self.HasInteracted = True
     ServerID:int = self.Payload.GetServerID()
     Bot = GetBot(interaction)
@@ -178,7 +169,7 @@ class ServerActivationApproval(SelfDeletingView):
     await self.StopInteractions()
 
   @ui.button(label="Forbid Forever", style=ButtonStyle.danger, row=4)
-  async def forbid_activation(self, interaction:Interaction, _:ui.Button):
+  async def forbid_activation(self, interaction:Interaction, button:ui.Button[ui.view.BaseView]):
     self.HasInteracted = True
     ServerID:int = self.Payload.GetServerID()
     Bot = GetBot(interaction)
@@ -192,6 +183,7 @@ class ServerActivationApproval(SelfDeletingView):
 
     await self.StopInteractions()
 
+  @override
   async def on_cancel(self, interaction:Interaction):
     self.HasInteracted = True
     Bot = GetBot(interaction)

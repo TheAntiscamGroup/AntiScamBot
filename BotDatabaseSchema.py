@@ -1,59 +1,60 @@
+from datetime import datetime
 from sqlalchemy import Integer, DateTime, String
 from sqlalchemy.sql import func, null
-from sqlalchemy.orm import DeclarativeBase, mapped_column
+from sqlalchemy.orm import DeclarativeBase, MappedColumn, mapped_column
 
 class Base(DeclarativeBase):
   pass
 
 class Migration(Base):
-  __tablename__ = "migrations"
+  __tablename__:str = "migrations"
 
-  id = mapped_column(Integer, primary_key=True, autoincrement=True)
-  database_version = mapped_column(Integer, nullable=False)
-  created_at = mapped_column(DateTime(), server_default=func.now())
-  updated_at = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
+  id:MappedColumn[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+  database_version:MappedColumn[int] = mapped_column(Integer, nullable=False)
+  created_at:MappedColumn[datetime] = mapped_column(DateTime(), server_default=func.now())
+  updated_at:MappedColumn[datetime] = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
 
 class Ban(Base):
-  __tablename__ = "bans"
+  __tablename__:str = "bans"
 
-  id = mapped_column(Integer, primary_key=True, autoincrement=True)
-  discord_user_id = mapped_column(String(32), unique=True, nullable=False)
-  assigner_discord_user_id = mapped_column(String(32), nullable=False)
-  assigner_discord_user_name = mapped_column(String(32), nullable=False)
-  created_at = mapped_column(DateTime(), server_default=func.now())
-  updated_at = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
-  evidence_thread = mapped_column(Integer, nullable=True, server_default=null())
+  id:MappedColumn[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+  discord_user_id:MappedColumn[str] = mapped_column(String(32), unique=True, nullable=False)
+  assigner_discord_user_id:MappedColumn[str] = mapped_column(String(32), nullable=False)
+  assigner_discord_user_name:MappedColumn[str] = mapped_column(String(32), nullable=False)
+  created_at:MappedColumn[datetime] = mapped_column(DateTime(), server_default=func.now())
+  updated_at:MappedColumn[datetime] = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
+  evidence_thread:MappedColumn[int|None] = mapped_column(Integer, nullable=True, server_default=null())
 
 class Server(Base):
-  __tablename__ = "servers"
+  __tablename__:str = "servers"
 
-  id = mapped_column(Integer, primary_key=True, autoincrement=True)
-  bot_instance_id = mapped_column(Integer, nullable=False, server_default="0")
-  discord_server_id = mapped_column(String(32), unique=True, nullable=False)
-  owner_discord_user_id = mapped_column(String(32), nullable=False)
-  activation_state = mapped_column(Integer, server_default="0")
-  activator_discord_user_id = mapped_column(String(32), nullable=False, server_default='-1')
-  created_at = mapped_column(DateTime(), server_default=func.now())
-  updated_at = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
-  message_channel = mapped_column(Integer, server_default="0")
-  has_webhooks = mapped_column(Integer, server_default="0")
-  kick_sus_users = mapped_column(Integer, server_default="0")
-  can_report = mapped_column(Integer, server_default="1")
-  should_ban_in = mapped_column(Integer, server_default="1")
+  id:MappedColumn[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+  bot_instance_id:MappedColumn[int] = mapped_column(Integer, nullable=False, server_default="0")
+  discord_server_id:MappedColumn[str] = mapped_column(String(32), unique=True, nullable=False)
+  owner_discord_user_id:MappedColumn[str] = mapped_column(String(32), nullable=False)
+  activation_state:MappedColumn[int] = mapped_column(Integer, server_default="0")
+  activator_discord_user_id:MappedColumn[str] = mapped_column(String(32), nullable=False, server_default='-1')
+  created_at:MappedColumn[datetime] = mapped_column(DateTime(), server_default=func.now())
+  updated_at:MappedColumn[datetime] = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
+  message_channel:MappedColumn[int] = mapped_column(Integer, server_default="0")
+  has_webhooks:MappedColumn[int] = mapped_column(Integer, server_default="0")
+  kick_sus_users:MappedColumn[int] = mapped_column(Integer, server_default="0")
+  can_report:MappedColumn[int] = mapped_column(Integer, server_default="1")
+  should_ban_in:MappedColumn[int] = mapped_column(Integer, server_default="1")
 
 class ExhaustedServer(Base):
-  __tablename__ = "exhausted_servers"
+  __tablename__:str = "exhausted_servers"
 
-  discord_server_id = mapped_column(String(32), primary_key=True, unique=True, nullable=False)
-  current_pos = mapped_column(Integer, nullable=False, server_default="0")
-  last_run = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
-  is_processing = mapped_column(Integer, nullable=False, server_default="0")
+  discord_server_id:MappedColumn[str] = mapped_column(String(32), primary_key=True, unique=True, nullable=False)
+  current_pos:MappedColumn[int] = mapped_column(Integer, nullable=False, server_default="0")
+  last_run:MappedColumn[datetime] = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
+  is_processing:MappedColumn[int] = mapped_column(Integer, nullable=False, server_default="0")
 
 # These are servers that the bot has been refused to be activated in
 class DeniedServers(Base):
-  __tablename__ = "denied_servers"
+  __tablename__:str = "denied_servers"
 
-  discord_server_id = mapped_column(String(32), unique=True, primary_key=True, nullable=False)
-  adjudicar_handle = mapped_column(String(32), nullable=False)
-  created_at = mapped_column(DateTime(), server_default=func.now())
-  updated_at = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())
+  discord_server_id:MappedColumn[str] = mapped_column(String(32), unique=True, primary_key=True, nullable=False)
+  adjudicar_handle:MappedColumn[str] = mapped_column(String(32), nullable=False)
+  created_at:MappedColumn[datetime] = mapped_column(DateTime(), server_default=func.now())
+  updated_at:MappedColumn[datetime] = mapped_column(DateTime(), server_default=func.now(), onupdate=func.now())

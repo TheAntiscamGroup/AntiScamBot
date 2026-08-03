@@ -1,8 +1,11 @@
+from __future__ import annotations
 from enum import auto
 from BotEnums import CompareEnum
 import datetime, time, asyncio, sys, coloredlogs
-from logger_tt import setup_logging, logger
-from collections.abc import Callable
+from logger_tt import setup_logging, logger  # pyright: ignore[reportUnknownVariableType]
+from collections.abc import Awaitable, Callable, Coroutine
+
+type AsyncLogFunc = Callable[..., Coroutine[Awaitable[None], Callable[[str], None], None]]
 
 __all__ = ["LogLevel", "Logger"]
 
@@ -18,14 +21,14 @@ class LogLevel(CompareEnum):
 CurrentLoggingLevel = LogLevel.Debug
 CurrentNotificationLevel = LogLevel.Warn
 HasInitialized = False
-NotificationCallback = None
+NotificationCallback:AsyncLogFunc|None = None
 
 coloredlogs.DEFAULT_LOG_FORMAT = '[%(asctime)s] %(processName)-24s %(levelname)9s %(message)s'
 coloredlogs.DEFAULT_LEVEL_STYLES = {'critical': {'bold': True, 'color': 'red'}, 'debug': {'color': 'green'}, 'error': {'color': 'red'}, 'info': {}, 'notice': {'color': 'magenta'}, 'spam': {'color': 'green', 'faint': True}, 'success': {'bold': True, 'color': 'green'}, 'verbose': {'color': 'blue'}, 'warning': {'color': 'yellow'}}
 coloredlogs.DEFAULT_FIELD_STYLES = {}
 
 setup_logging(config_path='log_config.json')
-coloredlogs.install(level='VERBOSE')
+coloredlogs.install(level='VERBOSE')  # pyright: ignore[reportUnknownMemberType]
 
 class Logger():
   @staticmethod
@@ -35,11 +38,11 @@ class Logger():
       HasInitialized = True
 
   @staticmethod
-  def GetTimestamp():
+  def GetTimestamp() -> float:
     return time.time()
 
   @staticmethod
-  def PrintDate():
+  def PrintDate() -> str:
     NowTime = str(datetime.datetime.now())
     return f"[{NowTime}] "
 
@@ -65,13 +68,12 @@ class Logger():
     if Level < CurrentLoggingLevel:
       return
 
-    if CurrentLoggingLevel == LogLevel.Silence:
+    if (CurrentLoggingLevel == LogLevel.Silence):
       return
 
     # Set up color logging
-    ColorStr = ""
     LoggerFunc = logger.info
-    MessageStr = f"[{sys._getframe(1).f_code.co_name}] {Input}"
+    MessageStr = f"[{sys._getframe(1).f_code.co_name}] {Input}"  # pyright: ignore[reportPrivateUsage]
     if Level == LogLevel.Error:
       LoggerFunc = logger.error
     elif Level == LogLevel.Warn:
@@ -108,7 +110,7 @@ class Logger():
     return CurrentLoggingLevel.name
 
   @staticmethod
-  def SetNotificationCallback(NewCallback):
+  def SetNotificationCallback(NewCallback:AsyncLogFunc):
     global NotificationCallback
     NotificationCallback = NewCallback
 

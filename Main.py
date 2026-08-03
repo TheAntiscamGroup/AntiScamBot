@@ -4,12 +4,12 @@ from BotEnums import BanAction, ModerationAction
 from Config import Config
 from datetime import datetime, timezone
 from CommandHelpers import TargetIdTransformer, ServerIdTransformer
-from discord import app_commands, Interaction, Embed, Object, Webhook
+from discord import TextChannel, app_commands, Interaction, Embed, Object, Webhook
 from BotSetup import SetupDatabases
 from ScamGuard import ScamGuard
 from ConfirmBanView import ConfirmBan
 from TextWrapper import TextLibrary
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, cast
 
 ConfigData:Config=Config()
 Messages:TextLibrary = TextLibrary()
@@ -19,8 +19,10 @@ if TYPE_CHECKING:
 
 if __name__ == '__main__':
   ### MAIN INSTANCE SETUP ###
-  CommandControlServer=Object(id=ConfigData["ControlServer"])
-  ScamGuardBot = ScamGuard(ConfigData["ControlBotID"])
+  CommandControlServer: Object=Object(id=ConfigData.get("ControlServer", -1))
+  ScamGuardBot: ScamGuard = ScamGuard(AssignedBotID=ConfigData.get("ControlBotID", 0))
+  MaintainerRoleID: int=ConfigData.get("MaintainerRole", 0)
+  ApproverRoleID: int=ConfigData.get("ApproverRole", 0)
 
   # These are all the main ScamGuard control commands for usage in the control server, these
   # do not get used in any other server, thus their very strange location and setup wrapping
@@ -31,7 +33,7 @@ if __name__ == '__main__':
     await interaction.response.send_message(embed=ReturnEmbed, silent=True)
 
   @ScamGuardBot.Commands.command(name="backup", description="Backs up the current database", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   async def BackupCommand(interaction:Interaction):
     if (ScamGuardBot.Database.Backup()):
       await interaction.response.send_message("Backed up current database")
@@ -39,7 +41,7 @@ if __name__ == '__main__':
       await interaction.response.send_message("Failed to backup database!")
 
   @ScamGuardBot.Commands.command(name="forceleave", description="Makes the bot force leave a server", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   @app_commands.describe(server='Discord ID of the server to leave')
   async def LeaveServer(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer]):
     if (server <= -1):
@@ -53,7 +55,7 @@ if __name__ == '__main__':
 
 
   @ScamGuardBot.Commands.command(name="forceactivate", description="Force activates a server for the bot", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   @app_commands.describe(server='Discord ID of the server to force activate')
   async def ForceActivate(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer]):
     if (server <= -1):
@@ -75,7 +77,7 @@ if __name__ == '__main__':
       Logger.Log(LogLevel.Warn, f"Unable to resolve server {server} for reprocess")
 
   @ScamGuardBot.Commands.command(name="forbidserver", description="Forbid a server from ScamGuard", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["ApproverRole"])
+  @app_commands.checks.has_role(ApproverRoleID)
   @app_commands.describe(server='Discord ID of the server to forbid')
   async def ForbidServer(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer]):
     if (server <= -1):
@@ -91,7 +93,7 @@ if __name__ == '__main__':
       await interaction.response.send_message(f"Server {server} is already forbidden", delete_after=5.0)
 
   @ScamGuardBot.Commands.command(name="unforbidserver", description="Unforbid a server from ScamGuard", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["ApproverRole"])
+  @app_commands.checks.has_role(ApproverRoleID)
   @app_commands.describe(server='Discord ID of the server to unforbid')
   async def UnforbidServer(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer]):
     if (server <= -1):
@@ -105,7 +107,7 @@ if __name__ == '__main__':
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
 
   @ScamGuardBot.Commands.command(name="retryactions", description="Forces the bot to retry last actions", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   @app_commands.describe(server='Discord ID of the server to force activate', numactions='The number of actions to perform (0 for reprocess all)')
   async def RetryActions(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer], numactions:app_commands.Range[int, 0]):
     if (server <= -1):
@@ -122,7 +124,7 @@ if __name__ == '__main__':
     await interaction.response.send_message(ReturnStr)
 
   @ScamGuardBot.Commands.command(name="retryinstance", description="Forces the bot to retry last actions for instance", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   @app_commands.describe(instance='Bot Instance ID to reimport', numactions='The number of actions to perform')
   async def RedoInstance(interaction:Interaction, instance:app_commands.Range[int, 0], numactions:app_commands.Range[int, 0]):
     ScamGuardBot.AddAsyncTask(ScamGuardBot.ReprocessBansForInstance(instance, LastActions=numactions))
@@ -131,7 +133,7 @@ if __name__ == '__main__':
     await interaction.response.send_message(ReturnStr)
 
   @ScamGuardBot.Commands.command(name="ping", description="Ping an instance", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   @app_commands.describe(instance='Bot Instance ID to ping')
   async def PingInstance(interaction:Interaction, instance:app_commands.Range[int, 0]):
     if (ScamGuardBot.ClientHandler is None):
@@ -141,7 +143,7 @@ if __name__ == '__main__':
     await interaction.response.send_message(f"Pinged instance #{instance}", ephemeral=True, delete_after=2.0)
 
   @ScamGuardBot.Commands.command(name="print", description="Print stats and information about all bots in the server", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   @app_commands.describe(exhausted_only='Only print servers in the exhausted state', deactivated_only='Print only deactivated servers')
   async def PrintServers(interaction:Interaction, exhausted_only:bool, deactivated_only:bool=False):
     ReplyStr:str = ""
@@ -176,7 +178,7 @@ if __name__ == '__main__':
       RowNum = 1
       CurrentTime:datetime = datetime.now(tz=timezone.utc)
       ExhaustedStr = f"\nThe following servers are exhausted as of `{CurrentTime}`:\n"
-      CooldownWaitTime:int = ConfigData["CooldownWaitInHours"]
+      CooldownWaitTime:int = ConfigData.get("CooldownWaitInHours", 24)
       for ExhaustedServer in ExhaustedServers:
         # Construct the correct time
         TimeRan:datetime = datetime.fromisoformat(str(ExhaustedServer.last_run)).replace(tzinfo=timezone.utc)
@@ -192,12 +194,12 @@ if __name__ == '__main__':
     MessageChunkLen:int = 2000
     MessageChunks = [ReplyStr[i:i+MessageChunkLen] for i in range(0, len(ReplyStr), MessageChunkLen)]
     for MessageChunk in MessageChunks:
-      await interaction.channel.send(MessageChunk) # type: ignore
+      await cast(TextChannel, interaction.channel).send(MessageChunk)
 
     await ResponseHook.send("Done printing", ephemeral=True)
 
   @ScamGuardBot.Commands.command(name="scamban", description="Bans a scammer", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["ApproverRole"])
+  @app_commands.checks.has_role(ApproverRoleID)
   @app_commands.describe(targetid='The discord id for the user to ban', reason='Optional reason, necessary for impersonation and hacks')
   async def ScamBan(interaction:Interaction, targetid:app_commands.Transform[int, TargetIdTransformer], reason:Optional[str]=None):
     if (targetid <= -1):
@@ -217,7 +219,7 @@ if __name__ == '__main__':
       await interaction.response.send_message(f"{targetid} already exists in the ban database")
 
   @ScamGuardBot.Commands.command(name="scamunban", description="Unbans a banned user", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["ApproverRole"])
+  @app_commands.checks.has_role(ApproverRoleID)
   @app_commands.describe(targetid='The discord id for the user to unban', reason='Optional reason for the unban')
   async def ScamUnban(interaction:Interaction, targetid:app_commands.Transform[int, TargetIdTransformer], reason:Optional[str]=None):
     if (targetid <= -1):
@@ -258,7 +260,7 @@ if __name__ == '__main__':
 
   # Control Server command to set evidence threads
   @ScamGuardBot.Commands.command(name="setthread", description="In the control server, set the evidence thread for the given user id", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["ApproverRole"])
+  @app_commands.checks.has_role(ApproverRoleID)
   async def SetThread_Control(interaction:Interaction, target:app_commands.Transform[int, TargetIdTransformer]):
     if (target <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
@@ -279,7 +281,7 @@ if __name__ == '__main__':
 
   # Togglers for curbing any potential abuse
   @ScamGuardBot.Commands.command(name="toggleserverban", description="In the control server, sets if the given server should have bans processed on them", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   async def SetBanActionForServer_Control(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer], state:bool):
     if (server <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
@@ -294,7 +296,7 @@ if __name__ == '__main__':
     Logger.Log(LogLevel.Log, f"Ban ability set for {server} to {state}")
 
   @ScamGuardBot.Commands.command(name="toggleserverreport", description="In the control server, sets if the given server should have bans processed on them", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   async def SetReportActionForServer_Control(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer], state:bool):
     if (server <= -1):
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
@@ -309,7 +311,7 @@ if __name__ == '__main__':
     Logger.Log(LogLevel.Log, f"Report ability set for {server} to {state}")
 
   @ScamGuardBot.Commands.command(name="inactivecleanup", description="In the control server, cleans up any servers where we don't have correct permissions", guild=CommandControlServer)
-  @app_commands.checks.has_role(ConfigData["MaintainerRole"])
+  @app_commands.checks.has_role(MaintainerRoleID)
   async def CleanupInactiveServers_Control(interaction:Interaction, dryrun:bool):
     await interaction.response.send_message(f"Attempting to clean up inactive servers now. Dry Run? {dryrun}")
     await ScamGuardBot.RunPeriodicLeave(dryrun)

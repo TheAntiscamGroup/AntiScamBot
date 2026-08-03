@@ -9,17 +9,31 @@ from Logger import Logger, LogLevel
 from BotEnums import BanResult, ChannelPostPermissions, RelayMessageType, ModerationAction
 from Config import Config
 from BotConnections import RelayClient
-import discord, asyncio, json, aiohttp, io
+import asyncio, json, aiohttp, io
+from asyncio.tasks import Task
+from discord import Embed, File, Client, Intents, Status, Member, Permissions, Role, User, utils
+from discord.errors import HTTPException, NotFound, Forbidden
+from discord.mentions import AllowedMentions
+from discord.colour import Colour
+from discord.webhook import Webhook, WebhookMessage
+from discord.activity import CustomActivity
+from discord.guild import Guild
+from discord.channel import ThreadWithMessage, TextChannel, ForumTag
+from discord.enums import WebhookType
+from discord.object import Object
+from discord.app_commands import CommandTree
 from discord.ext import tasks
 from BotDatabase import DatabaseDriver
 from queue import SimpleQueue
 from BotCommands import GlobalScamCommands
 from CommandHelpers import CommandErrorHandler
+from ScamReportPayload import ScamReportPayload
 from ServerActivation import ScamGuardServerSetup
 from TextWrapper import TextLibrary
-from typing import Sequence, cast, TYPE_CHECKING
+from collections.abc import Sequence
+from typing import cast, TYPE_CHECKING, override
 from Utils import GetDiscordMember, GetDiscordUser
-from Types import OptionalChannel
+from Types import AsyncTaskFunc, OptionalChannel, OptionalForum
 
 __all__ = ["DiscordBot"]
 
@@ -27,44 +41,46 @@ ConfigData:Config=Config()
 Messages:TextLibrary=TextLibrary()
 
 if TYPE_CHECKING:
-  from Types import DiscordPerson, OptionalDiscordPerson, OptionalDiscordMember
+  from Types import DiscordPerson, OptionalDiscordPerson, OptionalDiscordMember, OptionalGuild
+  from BotServerSettings import BotSettingsPayload
 
-class DiscordBot(discord.Client):
+class DiscordBot(Client):
   # Discord Channel that serves for notifications on bot activity/errors/warnings
-  NotificationChannel: OptionalChannel = None
-  ActivationChannel: OptionalChannel = None
+  NotificationChannel:OptionalChannel = None
+  ActivationChannel:OptionalChannel = None
   # Channel to send updates as to when someone is banned/unbanned
-  AnnouncementChannel: OptionalChannel = None
-  ReportChannel: discord.ForumChannel|None = None
+  AnnouncementChannel:OptionalChannel = None
+  ReportChannel:OptionalForum = None
   ClientHandler: RelayClient|None = None
-  ReportChannelTag: discord.ForumTag
+  ReportChannelTag: ForumTag|None = None
   ServerSetupHelper: ScamGuardServerSetup
-  BotID: int = -1
+  LoggingMessageQueue:SimpleQueue[str]
+  BotID:int = -1
 
   def __init__(self, RelayLocation: str, AssignedBotID:int=-1):
     self.Database:DatabaseDriver = DatabaseDriver()
     # initialize other values
-    self.AsyncTasks = set()
+    self.AsyncTasks:set[Task[AsyncTaskFunc]] = set()
     self.LoggingMessageQueue = SimpleQueue()
     self.ServerSetupHelper = ScamGuardServerSetup(self)
     self.BotID = AssignedBotID
-    intents = discord.Intents.none()
+    intents:Intents = Intents.none()
     intents.guilds = True
     intents.bans = True
 
-    if (ConfigData["AllowWebhookInstall"]):
+    if (ConfigData.get("AllowWebhookInstall", False)):
       intents.webhooks = True
 
     # bring in these intents so we can get an idea of shared servers scamcheck returns.
     # Do note, if these are enabled, the bot will take about 1 min to start up.
-    if (ConfigData["ScamCheckShowsSharedServers"]):
+    if (ConfigData.get("ScamCheckShowsSharedServers", False)):
       intents.members = True
       intents.presences = True
-    elif (ConfigData["AllowSuspiciousUserKicks"]):
+    elif (ConfigData.get("AllowSuspiciousUserKicks", False)):
       intents.members = True
 
     super().__init__(intents=intents)
-    self.Commands = discord.app_commands.CommandTree(self)
+    self.Commands:CommandTree = CommandTree(self)
     self.Commands.on_error = CommandErrorHandler
 
     self.SetupClientConnection(RelayLocation)
@@ -81,7 +97,7 @@ class DiscordBot(discord.Client):
     Logger.Log(LogLevel.Verbose, f"Instance #{self.BotID} is setting up function registration")
     # TODO: it would be great to use decorators here to register functions
     # probably just dump everything to a table thats passed to client handler
-    
+
     # Register functions for handling basic client actions
     self.ClientHandler.RegisterFunction(RelayMessageType.BanUser, self.BanUser)
     self.ClientHandler.RegisterFunction(RelayMessageType.UnbanUser, self.UnbanUser)
@@ -92,13 +108,18 @@ class DiscordBot(discord.Client):
     self.ClientHandler.RegisterFunction(RelayMessageType.ProcessServerActivation, self.ProcessServerActivationForInstance)
     self.ClientHandler.RegisterFunction(RelayMessageType.Ping, self.PostPongMessage)
 
+  @override
   async def setup_hook(self):
-    CommandControlServer=discord.Object(id=ConfigData["ControlServer"])
+    ControlServerID = ConfigData.get("ControlServer", -1)
+    if (ControlServerID <= 0):
+      Logger.Log(LogLevel.Error, "FATAL: ControlServer ID is invalid!!")
+      return
+    CommandControlServer=Object(id=ControlServerID)
 
     GlobalCommands = GlobalScamCommands(name="scamguard",
                       description="Handles ScamGuard commands",
                       # Allow only users that can submit bans
-                      default_permissions=discord.Permissions(1 << 2),
+                      default_permissions=Permissions(1 << 2),
                       extras={"instance": self})
 
     self.Commands.add_command(GlobalCommands)
@@ -117,7 +138,7 @@ class DiscordBot(discord.Client):
     await super().setup_hook()
 
   ### Event Queueing ###
-  def AddAsyncTask(self, TaskToComplete):
+  def AddAsyncTask(self, TaskToComplete:AsyncTaskFunc):
     TaskName:str = str(TaskToComplete)
     try:
       CurrentLoop = asyncio.get_running_loop()
@@ -152,7 +173,7 @@ class DiscordBot(discord.Client):
       try:
         if (self.NotificationChannel is not None):
           await self.NotificationChannel.send(Message)
-      except discord.HTTPException as ex:
+      except HTTPException as ex:
         Logger.Log(LogLevel.Log, f"WARN: Unable to send message to notification channel {str(ex)}")
 
   @PostLogMessages.before_loop
@@ -164,29 +185,34 @@ class DiscordBot(discord.Client):
     if (ShouldReload):
       ConfigData.Load()
 
-    if (ConfigData.IsValid("NotificationChannel", int)):
-      self.NotificationChannel = self.GetChannelById(ConfigData["NotificationChannel"])
+    ChannelCheck:int = ConfigData.get("NotificationChannel", -1)
+    if (ChannelCheck > 0):
+      self.NotificationChannel = self.GetChannelById(ChannelCheck)
     else:
       Logger.Log(LogLevel.Warn, "NotificationChannel setting is invalid")
       self.NotificationChannel = None
 
-    if (ConfigData.IsValid("ActivationChannel", int)):
-      self.ActivationChannel = self.GetChannelById(ConfigData["ActivationChannel"])
+    ChannelCheck = ConfigData.get("ActivationChannel", -1)
+    if (ChannelCheck > 0):
+      self.ActivationChannel = self.GetChannelById(ChannelCheck)
     else:
       Logger.Log(LogLevel.Warn, "ActivationChannel setting is invalid")
       self.ActivationChannel = None
 
-    if (ConfigData.IsValid("AnnouncementChannel", int)):
-      self.AnnouncementChannel = self.GetChannelById(ConfigData["AnnouncementChannel"])
+    ChannelCheck = ConfigData.get("AnnouncementChannel", -1)
+    if (ChannelCheck > 0):
+      self.AnnouncementChannel = self.GetChannelById(ChannelCheck)
     else:
       Logger.Log(LogLevel.Warn, "AnnouncementChannel setting is invalid")
       self.AnnouncementChannel = None
 
-    if (ConfigData.IsValid("ReportChannel", int)):
-      self.ReportChannel = cast(discord.ForumChannel|None, self.get_channel(ConfigData["ReportChannel"]))
+    ChannelCheck = ConfigData.get("ReportChannel", -1)
+    ReportTag: str = ConfigData.get("ReportChannelTag", "")
+    if (ChannelCheck > 0 and ReportTag != ""):
+      self.ReportChannel = cast(OptionalForum, self.get_channel(ChannelCheck))
       if (self.ReportChannel is not None):
         for tag in self.ReportChannel.available_tags:
-          if (tag.name == ConfigData["ReportChannelTag"]):
+          if (tag.name == ReportTag):
             self.ReportChannelTag = tag
             break
     else:
@@ -213,83 +239,55 @@ class DiscordBot(discord.Client):
     return False
 
   async def ForceLeaveServer(self, ServerId:int):
-    # TODO: create wrapper for get_guild
-    ServerToLeave:discord.Guild|None = self.get_guild(ServerId)
+    ServerToLeave:OptionalGuild = self.get_guild(ServerId)
     if (ServerToLeave is not None):
       ServerInfoStr:str = self.GetServerInfoStr(ServerToLeave)
       try:
         await ServerToLeave.leave()
         Logger.Log(LogLevel.Notice, f"We have left the server {ServerInfoStr}")
-      except discord.errors.HTTPException:
+      except HTTPException:
         Logger.Log(LogLevel.Verbose, f"Could not leave server {ServerInfoStr}, we are getting rate limited")
     else:
       Logger.Log(LogLevel.Warn, f"Could not find server with id {ServerId}, id is invalid")
 
   ### Discord Permission/Data Checking/Lookup ###
-  async def GetServersWithElevatedPermissions(self, UserID:int, SkipActivated:bool):
-    # TODO: remove old activation code
-    # This was used for the old /activate method before we had the remote activation feature
-    # this path doesn't really get called anymore
-    ServersWithPermissions = []
-    for Server in self.guilds:
-      ServerId:int = Server.id
-      if (SkipActivated and self.Database.IsActivatedInServer(ServerId)):
-        continue
-
-      ServerStr:str = self.GetServerInfoStr(Server)
-
-      # Owners are an easy add
-      if (Server.owner_id == UserID):
-        ServersWithPermissions.append(ServerId)
-      else:
-        GuildMember = await self.LookupMember(UserID, ServerToInspect=Server)
-        if (GuildMember is not None):
-          if (self.UserHasElevatedPermissions(GuildMember)):
-            ServersWithPermissions.append(ServerId)
-            Logger.Log(LogLevel.Log, f"User [{UserID}] is in server {ServerStr} with permissions")
-          else:
-            Logger.Log(LogLevel.Verbose, f"User [{UserID}] does not have elevated permissions in {ServerStr}")
-        else:
-          Logger.Log(LogLevel.Verbose, f"User [{UserID}] is not in server {ServerStr}")
-    return ServersWithPermissions
-
   async def UserAccountExists(self, UserID:int) -> bool:
     try:
       await self.fetch_user(UserID)
       return True
-    except discord.NotFound:
+    except NotFound:
       return False
-    except discord.HTTPException:
+    except HTTPException:
       return False
 
-  async def LookupMember(self, UserID:int, ServerToInspect:discord.Guild) -> OptionalDiscordMember:
+  async def LookupMember(self, UserID:int, ServerToInspect:Guild) -> OptionalDiscordMember:
     return GetDiscordMember(await self.LookupUser(UserID, ServerToInspect))
 
-  async def LookupUser(self, UserID:int, ServerToInspect:discord.Guild|None=None) -> OptionalDiscordPerson:
+  async def LookupUser(self, UserID:int, ServerToInspect:OptionalGuild=None) -> OptionalDiscordPerson:
     GivenServer:bool = (ServerToInspect is not None)
     try:
       if (GivenServer):
         return await ServerToInspect.fetch_member(UserID)
       else:
         return await self.fetch_user(UserID)
-    except discord.Forbidden:
+    except Forbidden:
       if (GivenServer):
         Logger.Log(LogLevel.Error, f"Bot does not have access to {ServerToInspect.name}")
-    except discord.NotFound as ex:
+    except NotFound as ex:
       if (GivenServer):
         Logger.Log(LogLevel.Debug, f"Could not find user {UserID} in {ServerToInspect.name}")
       else:
         Logger.Log(LogLevel.Warn, f"UserID {UserID} was not found with error {str(ex)}")
-    except discord.HTTPException as httpEx:
+    except HTTPException as httpEx:
       Logger.Log(LogLevel.Warn, f"Failed to fetch user {UserID}, got {str(httpEx)}")
     return None
 
-  def UserHasElevatedPermissions(self, User:discord.Member) -> bool:
+  def UserHasElevatedPermissions(self, User:Member|None) -> bool:
     # This is the old method of /activate that's no longer used. It is deprecated.
     if (User is None):
       return False
 
-    UserPermissions:discord.Permissions = User.guild_permissions
+    UserPermissions:Permissions = User.guild_permissions
     if (UserPermissions.administrator or (UserPermissions.manage_guild and UserPermissions.ban_members)):
       return True
     return False
@@ -314,10 +312,10 @@ class DiscordBot(discord.Client):
     ActivityObj = None
     IdPrefix:str = f"ID: #{self.BotID} "
     if (ConfigData.IsDevelopment()):
-      ActivityObj = discord.CustomActivity(name=IdPrefix + Messages["activity"]["development"])
+      ActivityObj = CustomActivity(name=IdPrefix + Messages["activity"]["development"])
     else:
-      ActivityObj = discord.CustomActivity(name=IdPrefix + Messages["activity"]["default"])
-    await self.change_presence(status=discord.Status.online, activity=ActivityObj)
+      ActivityObj = CustomActivity(name=IdPrefix + Messages["activity"]["default"])
+    await self.change_presence(status=Status.online, activity=ActivityObj)
 
     # Set logger callbacks for notifications
     if (self.NotificationChannel is not None):
@@ -339,7 +337,7 @@ class DiscordBot(discord.Client):
   async def on_ready(self):
     self.AddAsyncTask(self.InitializeBotRuntime())
 
-  async def on_guild_update(self, PriorUpdate:discord.Guild, NewUpdate:discord.Guild):
+  async def on_guild_update(self, PriorUpdate:Guild, NewUpdate:Guild):
     NewOwnerId:int|None = NewUpdate.owner_id
     if (NewOwnerId is None):
       return
@@ -348,7 +346,7 @@ class DiscordBot(discord.Client):
       self.Database.SetNewServerOwner(NewUpdate.id, NewOwnerId, self.BotID)
       Logger.Log(LogLevel.Notice, f"Detected that the server {self.GetServerInfoStr(PriorUpdate)} is now owned by {NewOwnerId}")
 
-  async def on_guild_join(self, server:discord.Guild):
+  async def on_guild_join(self, server:Guild):
     OwnerName:str = "Admin"
     if (server.owner is not None):
       OwnerName = server.owner.display_name
@@ -377,44 +375,44 @@ class DiscordBot(discord.Client):
       return
 
     self.Database.SetBotActivationForOwner([server.id], False, self.BotID, OwnerId=server.owner_id or 0)
-    if (ConfigData["PostWelcomeMessages"]):
+    if (ConfigData.get("PostWelcomeMessages", False)):
       self.AddAsyncTask(self.PostFirstTimeMessage(server.id))
     Logger.Log(LogLevel.Notice, f"Bot (#{self.BotID}) has joined server {ServerStr} of owner {OwnerName}[{server.owner_id}]")
 
-  async def on_guild_remove(self, server:discord.Guild):
+  async def on_guild_remove(self, server:Guild):
     OwnerName:str = "Admin"
     if (server.owner is not None):
       OwnerName = server.owner.display_name
 
     self.Database.RemoveServerEntry(server.id, self.BotID)
-    Logger.Log(LogLevel.Notice, 
+    Logger.Log(LogLevel.Notice,
         f"Bot (#{self.BotID}) has been removed from server {self.GetServerInfoStr(server)} of owner {OwnerName}[{server.owner_id}]")
 
   ### Report Handling ###
-  async def PostScamReport(self, ReportData):
+  async def PostScamReport(self, ReportData:ScamReportPayload) -> None:
     if (self.ReportChannel is None or self.ReportChannelTag is None):
       return
 
     ImageFormats = ("image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp")
-    PostEmbeds:list[discord.Embed] = []
-    PostFiles:list[discord.File] = []
-    if (ConfigData["AutoEmbedScamCheckOnReport"]):
-      PostEmbeds.append(await self.CreateBanEmbed(ReportData['ReportedUserId']))
+    PostEmbeds:list[Embed] = []
+    PostFiles:list[File] = []
+    if (ConfigData.get("AutoEmbedScamCheckOnReport", True)):
+      PostEmbeds.append(await self.CreateBanEmbed(ReportData.ReportedUserId))
 
     ReasoningString:str = ""
-    if (len(ReportData["Reasoning"])):
-      ReasoningString = f"Reasoning: {ReportData['Reasoning']}"
+    if (len(ReportData.Reasoning)):
+      ReasoningString = f"Reasoning: {ReportData.Reasoning}"
 
-    ReportUserId = ReportData['ReportedUserId']
-    ReportUserHandle = ReportData['ReportedUserName']
-    ReportUserName = ReportData['ReportedUserGlobalName']
-    ReportUserStr = f"{ReportData['ReportingUserName']}[{ReportData['ReportingUserId']}] from {ReportData['ReportedServer']}[{ReportData['ReportedServerId']}]"
+    ReportUserId = ReportData.ReportedUserId
+    ReportUserHandle:str = ReportData.ReportedUserName
+    ReportUserName:str = ReportData.ReportedUserGlobalName
+    ReportUserStr = f"{ReportData.ReportingUserName}[{ReportData.ReportingUserId}] from {ReportData.ReportedServer}[{ReportData.ReportedServerId}]"
 
     # Format the message that is going to be posted!
     ReportContent:str = f"""
     User ID: `{ReportUserId}`
 Username: {ReportUserName}
-Type Of Scam: {ReportData['TypeOfScam']}
+Type Of Scam: {ReportData.TypeOfScam}
 {ReasoningString}
 
 Reported Remotely By: {ReportUserStr}
@@ -427,7 +425,7 @@ Failed Copied Evidence Links:
 
     async with aiohttp.ClientSession() as session:
       HadCopyFailure:bool = False
-      for Evidence in ReportData["Evidence"]:
+      for Evidence in ReportData.Evidence:
         if (NumEvidences >= 10):
           break
 
@@ -445,35 +443,32 @@ Failed Copied Evidence Links:
               HadCopyFailure = True
               continue
             EvidenceData = io.BytesIO(await response.read())
-            NewFile:discord.File = discord.File(EvidenceData, f'Evidence{NumEvidences}.png')
+            NewFile:File = File(EvidenceData, f'Evidence{NumEvidences}.png')
             PostFiles.append(NewFile)
             NumEvidences += 1
       if (not HadCopyFailure):
         ReportContent += "None"
     try:
-      if (self.ReportChannel is None):
-        return
-
-      NewThread:discord.channel.ThreadWithMessage = await self.ReportChannel.create_thread(name=ReportData["ReportedUserGlobalName"],
+      NewThread:ThreadWithMessage = await self.ReportChannel.create_thread(name=ReportData.ReportedUserGlobalName,
                      content=ReportContent,
                      applied_tags=[self.ReportChannelTag],
-                     reason=f"ScamReport from {ReportData['ReportingUserName']}[{ReportData['ReportingUserId']}]",
+                     reason=f"ScamReport from {ReportData.ReportingUserName}[{ReportData.ReportingUserId}]",
                      embeds=PostEmbeds, files=PostFiles)
 
       # Update the user with the ScamGuard thread that was created
-      ThreadEmbed:discord.Embed = self.CreateBaseEmbed(f"Report created for {ReportUserName}")
+      ThreadEmbed:Embed = self.CreateBaseEmbed(f"Report created for {ReportUserName}")
       ThreadEmbed.add_field(name="User Name", value=f"{ReportUserName}")
       ThreadEmbed.add_field(name="User Handle", value=f"{ReportUserHandle}")
       ThreadEmbed.add_field(name="User ID", value=f"{ReportUserId}", inline=False)
       ThreadEmbed.add_field(name="Thread Link (for updates)", value=f"{NewThread.thread.mention}", inline=False)
       ThreadEmbed.set_footer(text="Can't see the thread? Join the server: https://scamguard.app/discord")
-      await ReportData["Webhook"].send(embed=ThreadEmbed, ephemeral=False)
+      await ReportData.ReportWebhook.send(embed=ThreadEmbed, ephemeral=False)
 
-    except discord.NotFound:
+    except NotFound:
       Logger.Log(LogLevel.Warn, "Unable to update the original command that sent a report with a new embed, the followup has expired.")
-    except discord.Forbidden:
-      Logger.Log(LogLevel.Error, f"Unable to make report on user {ReportData['ReportedUserId']} as we do not have permissions to do so!")
-    except discord.HTTPException as ex:
+    except Forbidden:
+      Logger.Log(LogLevel.Error, f"Unable to make report on user {ReportData.ReportedUserId} as we do not have permissions to do so!")
+    except HTTPException as ex:
       Logger.Log(LogLevel.Error, f"Unable to make report on user {json.dumps(ReportData)} with exception {str(ex)}")
 
   ### First Time Message Posting ###
@@ -481,17 +476,17 @@ Failed Copied Evidence Links:
     # TODO: extrapolate this function so channel queries are easier
     # good for migration. doesn't need to be used for much else because
     # we can pump the settings channel to post other messages
-    CanCreatePrivateThread: bool = ConfigData["UseThreadsForWelcomeMessage"]
-    Server: discord.Guild|None = self.get_guild(ServerId)
+    CanCreatePrivateThread:bool = ConfigData.get("UseThreadsForWelcomeMessage", True)
+    Server:OptionalGuild = self.get_guild(ServerId)
     if (Server is None):
-      Logger.Log(LogLevel.Warn, f"Server {ServerId} was none")
+      Logger.Log(LogLevel.Warn, f"Server {ServerId} was invalid")
       return
 
     # Find if we can even use threads (determined by if we can mention any of the moderators)
-    MentionStr: str = ""
+    MentionStr:str = ""
     # Need this to actually notify people
-    MentionPerms: discord.AllowedMentions = discord.AllowedMentions(roles=True, users=True)
-    MentionRoles: Sequence[discord.Role] = []
+    MentionPerms: AllowedMentions = AllowedMentions(roles=True, users=True)
+    MentionRoles: Sequence[Role] = []
     # Find all the roles that can ban members, we're about to mention them directly
     for RoleCheck in Server.roles:
       if (RoleCheck.permissions.ban_members and RoleCheck.mentionable):
@@ -506,10 +501,10 @@ Failed Copied Evidence Links:
       # thread, thus no one will be able to see it, as such, we need to post publicly
       CanCreatePrivateThread = False
 
-    BotMember:discord.Member = Server.me
+    BotMember:Member = Server.me
     # Try to find the channel that we can potentially post in
     ChannelSet: OptionalChannel = None
-    ChannelPermissionList: list[tuple[discord.TextChannel, ChannelPostPermissions]] = []
+    ChannelPermissionList: list[tuple[TextChannel, ChannelPostPermissions]] = []
     if (Server.system_channel is not None):
       ChannelPermissionList.append((Server.system_channel, self.GetChannelPostPerms(Server.system_channel, BotMember, CanCreatePrivateThread)))
 
@@ -528,10 +523,11 @@ Failed Copied Evidence Links:
     # and those are probably not ones we can message in anyways
     ChannelsQueried: int = 0
     OldestList = sorted(Server.text_channels, key=lambda chan: chan.created_at)
+    MaxSortLimit: int = ConfigData.get("MaxRankSortForWelcomeMessage", 5)
+    MaxChannelsQuery: int = ConfigData.get("MaxChannelsToQueryForWelcomeMessage", 10)
     for OldChannel in OldestList:
       # Break out on 5 for memory purposes.
-      if (len(ChannelPermissionList) - StartingLength >= ConfigData["MaxRankSortForWelcomeMessage"] or
-          ChannelsQueried >= ConfigData["MaxChannelsToQueryForWelcomeMessage"]):
+      if (len(ChannelPermissionList) - StartingLength >= MaxSortLimit or ChannelsQueried >= MaxChannelsQuery):
         break
 
       HighestPermission: ChannelPostPermissions = self.GetChannelPostPerms(OldChannel, BotMember, CanCreatePrivateThread)
@@ -547,7 +543,7 @@ Failed Copied Evidence Links:
 
     # If we find a channel to send into
     if (ChannelSet is not None):
-      PostEmbed: discord.Embed = self.CreateFirstTimeEmbed()
+      PostEmbed: Embed = self.CreateFirstTimeEmbed()
       PostedInThread: bool = False
       ServerStr: str = f"{Server.name}[{ServerId}]"
 
@@ -565,7 +561,7 @@ Failed Copied Evidence Links:
         try:
           # double check to see if we can put embeds here, if not the embed argument will just be ignored when we call .send
           if (self.GetChannelPostPerms(ChannelSet, BotMember, False) == ChannelPostPermissions.SendMessageOnly):
-            MentionStr += " " + Messages["first_time"]["message_only"].format(days=ConfigData["InactiveServerDayWindow"])
+            MentionStr += " " + Messages["first_time"]["message_only"].format(days=ConfigData.get("InactiveServerDayWindow", 3))
 
           await ChannelSet.send(MentionStr, embed=PostEmbed, allowed_mentions=MentionPerms)
         except Exception as ex:
@@ -575,9 +571,9 @@ Failed Copied Evidence Links:
     else:
       Logger.Log(LogLevel.Error, f"Could not find a channel for server {ServerId} to post welcome message")
 
-  def GetChannelPostPerms(self, channel: OptionalChannel, GuildSelf:discord.Member, CheckThreads:bool) -> ChannelPostPermissions:
+  def GetChannelPostPerms(self, channel:OptionalChannel, GuildSelf:Member, CheckThreads:bool) -> ChannelPostPermissions:
     if (channel is not None):
-      ChannelPerms:discord.Permissions = channel.permissions_for(GuildSelf)
+      ChannelPerms:Permissions = channel.permissions_for(GuildSelf)
       if (CheckThreads and ChannelPerms.create_private_threads):
         return ChannelPostPermissions.CanThread
 
@@ -599,7 +595,7 @@ Failed Copied Evidence Links:
       Logger.Log(LogLevel.Warn, f"Could not install webhook for server {ServerId}, the ChannelID was None")
       return
 
-    MessageChannel: OptionalChannel = self.GetChannelById(ChannelID)
+    MessageChannel:OptionalChannel = self.GetChannelById(ChannelID)
     # Check to see if a webhook is already installed.
     if (MessageChannel is not None):
       try:
@@ -608,9 +604,9 @@ Failed Copied Evidence Links:
           if (Webhook.source_channel is None):
             continue
           # The webhook is already installed, do not attempt to install again.
-          if (Webhook.type == discord.WebhookType.channel_follower and Webhook.source_channel.id == self.AnnouncementChannel.id):
+          if (Webhook.type == WebhookType.channel_follower and Webhook.source_channel.id == self.AnnouncementChannel.id):
             return
-      except discord.Forbidden:
+      except Forbidden:
         Logger.Log(LogLevel.Warn, f"Unable to check the currently installed webhooks to the channel {ChannelID} in server {ServerId} to see if it was already installed.")
     else:
       Logger.Log(LogLevel.Warn, f"Attempted to install a webhook for an invalid message channel object. Server: {ServerId}, ChannelId: {ChannelID}")
@@ -618,9 +614,9 @@ Failed Copied Evidence Links:
 
     try:
       await self.AnnouncementChannel.follow(destination=MessageChannel, reason="ScamGuard Ban Notification Setup")
-    except discord.Forbidden:
+    except Forbidden:
       await MessageChannel.send(Messages["webhook"]["install_error"])
-    except discord.HTTPException:
+    except HTTPException:
       Logger.Log(LogLevel.Log, f"Encountered an HTTP error while trying to install the webhook")
 
   async def DeleteWebhook(self, ServerId:int):
@@ -632,21 +628,21 @@ Failed Copied Evidence Links:
     if (ChannelID is None):
       Logger.Log(LogLevel.Warn, f"Could not uninstall webhook for server {ServerId}, the ChannelID was None")
       return
-    WebhookChannel: OptionalChannel = self.GetChannelById(ChannelID)
-    FoundWebhook:discord.Webhook|None = None
+    WebhookChannel:OptionalChannel = self.GetChannelById(ChannelID)
+    FoundWebhook:Webhook|None = None
 
     # Check to see if a webhook is already installed.
     if (WebhookChannel is not None):
       try:
-        CurrentWebhooks = await WebhookChannel.webhooks()
+        CurrentWebhooks: list[Webhook] = await WebhookChannel.webhooks()
         for Webhook in CurrentWebhooks:
           if (Webhook.source_channel is None):
             continue
           # The webhook is already installed, grab a reference to it.
-          if (Webhook.type == discord.WebhookType.channel_follower and Webhook.source_channel.id == self.AnnouncementChannel.id):
+          if (Webhook.type == WebhookType.channel_follower and Webhook.source_channel.id == self.AnnouncementChannel.id):
             FoundWebhook = Webhook
             break
-      except discord.Forbidden:
+      except Forbidden:
         # This will throw if they never wanted webhooks and the channel doesn't have the permissions for it
         return
     else:
@@ -658,23 +654,26 @@ Failed Copied Evidence Links:
 
     try:
       await FoundWebhook.delete(reason="ScamGuard Setting Change")
-    except discord.Forbidden:
+    except Forbidden:
       await WebhookChannel.send(Messages["webhook"]["remove"]["perm"])
-    except discord.HTTPException:
+    except HTTPException:
       await WebhookChannel.send(Messages["webhook"]["remove"]["fatal"])
 
   ### Utils ###
   def GetChannelById(self, ChannelID: int) -> OptionalChannel:
     return cast(OptionalChannel, self.get_channel(ChannelID))
 
-  def GetServerInfoStr(self, Server:discord.Guild|None) -> str:
+  def GetServerInfoStr(self, Server:OptionalGuild) -> str:
     if Server is None:
       return ""
 
     return f"`{Server.name}`[{Server.id}]"
 
-  def GetControlServerGuild(self) -> discord.Guild|None:
-    return self.get_guild(ConfigData["ControlServer"])
+  def GetControlServerGuild(self) -> OptionalGuild:
+    ControlID:int = ConfigData.get("ControlServer", -1)
+    if (ControlID <= 0):
+      return None
+    return self.get_guild(ControlID)
 
   def PostPongMessage(self):
     Logger.Log(LogLevel.Notice, "I have been pinged!")
@@ -682,7 +681,7 @@ Failed Copied Evidence Links:
   async def PostNotification(self, Message:str):
     self.LoggingMessageQueue.put(Message)
 
-  async def ApplySettings(self, NewSettings):
+  async def ApplySettings(self, NewSettings: 'BotSettingsPayload'):
     ServerID:int = NewSettings.GetServerID()
     self.Database.SetFromServerSettings(ServerID, NewSettings)
     if (NewSettings.WantsWebhooks):
@@ -690,8 +689,8 @@ Failed Copied Evidence Links:
     else:
       await self.DeleteWebhook(ServerID)
 
-  # TODO: document usage
-  async def DeleteFutureMessage(self, Message:discord.WebhookMessage, time:float):
+  # Deletes webhook messages in the future, mostly used for interactions (like settings configs)
+  async def DeleteFutureMessage(self, Message:WebhookMessage, time:float):
     try:
       await Message.delete(delay=time)
     except:
@@ -700,23 +699,24 @@ Failed Copied Evidence Links:
       pass
 
   ### Embeds ###
-  def CreateBaseEmbed(self, Title:str, ApplyThumbnail:bool=True) -> discord.Embed:
-    ReturnEmbed:discord.Embed = discord.Embed(title=Title, colour=discord.Colour.from_rgb(0, 0, 0))
-    if (ConfigData.IsValid("AppEmbedThumbnail", str) and ApplyThumbnail):
-      ReturnEmbed.set_thumbnail(url=ConfigData["AppEmbedThumbnail"])
+  def CreateBaseEmbed(self, Title:str, ApplyThumbnail:bool=True) -> Embed:
+    ReturnEmbed:Embed = Embed(title=Title, colour=Colour.from_rgb(0, 0, 0))
+    ThumbURL: str = ConfigData.get("AppEmbedThumbnail", "")
+    if (len(ThumbURL) > 1 and ApplyThumbnail):
+      ReturnEmbed.set_thumbnail(url=ThumbURL)
 
     ReturnEmbed.set_author(name="ScamGuard", url="https://scamguard.app")
     return ReturnEmbed
 
-  def AddSettingsEmbedInfo(self, AddToEmbed:discord.Embed):
+  def AddSettingsEmbedInfo(self, AddToEmbed:Embed):
     AddToEmbed.add_field(name="Settings", value="", inline=False)
     AddToEmbed.add_field(name="Message Channel for Moderators", inline=False, value=Messages['settings']['mod_msg'])
     AddToEmbed.add_field(name="Ban Notification Channel", inline=False, value=Messages['settings']['ban_notif'])
 
-  def CreateInfoEmbed(self) -> discord.Embed:
+  def CreateInfoEmbed(self) -> Embed:
     NumServers:int = self.Database.GetNumServers()
     NumActivated:int = self.Database.GetNumActivatedServers()
-    ResponseEmbed:discord.Embed = self.CreateBaseEmbed("ScamGuard Info")
+    ResponseEmbed:Embed = self.CreateBaseEmbed("ScamGuard Info")
     ResponseEmbed.add_field(name="About", inline=False, value=Messages['info']['about'])
     ResponseEmbed.add_field(name="Links", value=Messages["info"]["links"])
     ResponseEmbed.add_field(name="Help", value=Messages["info"]["help_links"])
@@ -724,9 +724,9 @@ Failed Copied Evidence Links:
     ResponseEmbed.set_footer(text=f"Scammers Defeated: {self.Database.GetNumBans()} | Servers: {NumActivated}/{NumServers}")
     return ResponseEmbed
 
-  def CreateFirstTimeEmbed(self) -> discord.Embed:
-    NumDays:int = ConfigData["InactiveServerDayWindow"]
-    ResponseEmbed:discord.Embed = self.CreateBaseEmbed("ScamGuard Welcome")
+  def CreateFirstTimeEmbed(self) -> Embed:
+    NumDays:int = ConfigData.get("InactiveServerDayWindow", 3)
+    ResponseEmbed:Embed = self.CreateBaseEmbed("ScamGuard Welcome")
     ResponseEmbed.description = Messages["first_time"]["desc"].format(bans=self.Database.GetNumBans())
     ResponseEmbed.add_field(name=Messages["first_time"]["mod_role_title"],
                             value=Messages["first_time"]["mod_role_desc"], inline=False)
@@ -736,7 +736,7 @@ Failed Copied Evidence Links:
     ResponseEmbed.set_footer(text=Messages["first_time"]["footer"])
     return ResponseEmbed
 
-  async def CreateBanEmbed(self, TargetId:int, ShowStatus:bool=True, Reason:str|None=None) -> discord.Embed:
+  async def CreateBanEmbed(self, TargetId:int, ShowStatus:bool=True, Reason:str|None=None) -> Embed:
     BanData = self.Database.GetBanInfo(TargetId)
     UserBanned:bool = (BanData is not None)
     User = await self.LookupUser(TargetId)
@@ -747,7 +747,7 @@ Failed Copied Evidence Links:
       UserData.add_field(name="Discord Handle", value=f"`{User.name}`", inline=True)
       UserData.add_field(name="Mention", value=User.mention)
       # This will always be an approximation, plus they may be in servers the bot is not in.
-      if (ConfigData["ScamCheckShowsSharedServers"]):
+      if (ConfigData.get("ScamCheckShowsSharedServers", False)):
         UserData.add_field(name="Shared Servers", value=f"~{len(User.mutual_guilds)}")
 
       # To make it easier to copy ids from scamchecks
@@ -756,7 +756,7 @@ Failed Copied Evidence Links:
       # If we have an evidence thread, display it.
       if (UserBanned and BanData.evidence_thread is not None):
         UserData.add_field(name="Evidence (TAG Server)", value=f"<#{BanData.evidence_thread}>", inline=False)
-      UserData.add_field(name="Account Created", value=f"{discord.utils.format_dt(User.created_at)}", inline=False)
+      UserData.add_field(name="Account Created", value=f"{utils.format_dt(User.created_at)}", inline=False)
       # Show the reason
       if (Reason is not None):
         UserData.add_field(name="Reason", value=Reason, inline=False)
@@ -769,35 +769,34 @@ Failed Copied Evidence Links:
     if (UserBanned):
       UserData.add_field(name="Banned By", value=f"{BanData.assigner_discord_user_name}")
       # Create a date time format (all of the database timestamps are in iso format)
-      UserData.add_field(name="Banned At", value=f"{discord.utils.format_dt(BanData.created_at)}", inline=False)
+      UserData.add_field(name="Banned At", value=f"{utils.format_dt(BanData.created_at)}", inline=False)
       # Push a last updated field if the time stamps aren't the same
       if (BanData.created_at != BanData.updated_at):
-        UserData.add_field(name="Last Updated", value=f"{discord.utils.format_dt(BanData.updated_at)}", inline=False)
+        UserData.add_field(name="Last Updated", value=f"{utils.format_dt(BanData.updated_at)}", inline=False)
 
-      UserData.colour = discord.Colour.red()
+      UserData.colour = Colour.red()
     elif (not HasUserData):
-      UserData.colour = discord.Colour.dark_orange()
+      UserData.colour = Colour.dark_orange()
     else:
-      UserData.colour = discord.Colour.green()
+      UserData.colour = Colour.green()
 
     UserData.set_footer(text=f"User ID: {TargetId}")
     return UserData
 
-  def UpdateEmbedForPublish(self, NewEmbed:discord.Embed, Action:ModerationAction):
+  def UpdateEmbedForPublish(self, NewEmbed:Embed, Action:ModerationAction):
     if (Action is not ModerationAction.Ban and Action is not ModerationAction.Unban):
       return
 
     ActionStr:str = Messages["general"]["in_progress"]
     NewEmbed.title = f"{(str(Action))} {ActionStr}"
     if (Action is ModerationAction.Ban):
-      NewEmbed.colour = discord.Colour.red()
+      NewEmbed.colour = Colour.red()
     elif (Action is ModerationAction.Unban):
-      NewEmbed.colour = discord.Colour.green()
+      NewEmbed.colour = Colour.green()
 
   ### Ban Handling ###
   async def ReprocessBans(self, ServerId:int, LastActions:int=0, HandlingCooldown:bool=False) -> BanResult:
-    # TODO: type mask discord.Guild|None
-    Server:discord.Guild|None = self.get_guild(ServerId)
+    Server:OptionalGuild = self.get_guild(ServerId)
     if (Server is None):
       Logger.Log(LogLevel.Error, f"Could not look up the server {ServerId} while reprocessing bans")
       if (HandlingCooldown):
@@ -812,9 +811,13 @@ Failed Copied Evidence Links:
     RawBanQuery = self.Database.GetAllBans(LastActions)
     CurrentNumBans:int = len(RawBanQuery)
     ActionsAppliedThisLoop:int = 0
-    DoesSleep:bool = ConfigData["UseSleep"]
-    DoesHaltOnFailures:bool = ConfigData["MaxBanFailures"] > 0
-    DoesHaltOnMaxBans:bool = ConfigData["MaxBulkImports"] > 0
+    DoesSleep:bool = ConfigData.get("UseSleep", True)
+    MaxBanFailures:int = ConfigData.get("MaxBanFailures", 3)
+    DoesHaltOnFailures:bool = MaxBanFailures > 0
+    MaxBanImports:int = ConfigData.get("MaxBulkImports", 1000)
+    DoesHaltOnMaxBans:bool = MaxBanImports > 0
+    MaxActionsPerTick:int = ConfigData.get("ActionsPerTick", 10)
+    SleepAmount:float = ConfigData.get("SleepAmount", 10.0)
 
     # resort the ban query list if we are handling cooldowns
     BanQueryResult = RawBanQuery
@@ -824,24 +827,24 @@ Failed Copied Evidence Links:
     for Ban in BanQueryResult:
       if (DoesSleep):
         # Put in sleep functionality on this loop, as it could be heavy
-        if (ActionsAppliedThisLoop >= ConfigData["ActionsPerTick"]):
-          await asyncio.sleep(ConfigData["SleepAmount"])
+        if (ActionsAppliedThisLoop >= MaxActionsPerTick):
+          await asyncio.sleep(SleepAmount)
           ActionsAppliedThisLoop = 0
         else:
           ActionsAppliedThisLoop += 1
 
-      if (DoesHaltOnFailures and NumFailures > ConfigData["MaxBanFailures"]):
+      if (DoesHaltOnFailures and NumFailures > MaxBanFailures):
         Logger.Log(LogLevel.Warn, f"Number of ban failures reached {NumFailures} for server {ServerInfoStr}, exiting subprocess.")
         BanReturn = BanResult.Error
         break
 
       # Check if we have a max and stop processing from here
-      if (DoesHaltOnMaxBans and NumBans >= ConfigData["MaxBulkImports"]):
+      if (DoesHaltOnMaxBans and NumBans >= MaxBanImports):
         BanReturn = BanResult.BansExceeded
         break
 
       UserId:int = int(Ban.discord_user_id)
-      UserToBan:discord.User = GetDiscordUser(UserId)
+      UserToBan:User = GetDiscordUser(UserId)
       BanMessage:str = f"User banned by {Ban.assigner_discord_user_name}"
       BanResponse = await self.PerformActionOnServer(Server, UserToBan, BanMessage, ModerationAction.Ban)
       # See if the ban did go through.
@@ -928,10 +931,12 @@ Failed Copied Evidence Links:
   async def ProcessActionOnUser(self, TargetId:int, AuthorizerName:str, Action:ModerationAction, *, BanNumOverride:int=-1, Reason:str|None=None):
     NumServersPerformed:int = 0
     ActionsAppliedThisLoop:int = 0
-    DoesSleep:bool = ConfigData["UseSleep"]
+    DoesSleep:bool = ConfigData.get("UseSleep", True)
+    MaxActionsPerTick:int = ConfigData.get("ActionsPerTick", 10)
+    SleepAmount:float = ConfigData.get("SleepAmount", 10.0)
     # Used to get an estimation of what this ban number would be. It is not accurate in heavy ban waves.
     BanNumber:int = self.Database.GetNumBans() if BanNumOverride == -1 else BanNumOverride
-    UserToWorkOn:discord.User = GetDiscordUser(TargetId)
+    UserToWorkOn:User = GetDiscordUser(TargetId)
 
     ReasonStr:str = f" - {Reason}" if Reason is not None else ""
     BanReason=f"Confirmed {str(Action)} by {AuthorizerName}{ReasonStr}"
@@ -942,8 +947,8 @@ Failed Copied Evidence Links:
     for ServerData in AllServers:
       if (DoesSleep):
         # Put in sleep functionality on this loop, as it could be heavy
-        if (ActionsAppliedThisLoop >= ConfigData["ActionsPerTick"]):
-          await asyncio.sleep(ConfigData["SleepAmount"])
+        if (ActionsAppliedThisLoop >= MaxActionsPerTick):
+          await asyncio.sleep(SleepAmount)
           ActionsAppliedThisLoop = 0
         else:
           ActionsAppliedThisLoop += 1
@@ -983,7 +988,7 @@ Failed Copied Evidence Links:
     Logger.Log(LogLevel.Notice, f"Action execution on {TargetId} performed in {NumServersPerformed}/{NumServers} servers")
 
   # Handles moderation actions an user in each individual server
-  async def PerformActionOnServer(self, Server:discord.Guild, User:DiscordPerson, Reason:str, Action:ModerationAction) -> tuple[bool, BanResult]:
+  async def PerformActionOnServer(self, Server:Guild, User:DiscordPerson, Reason:str, Action:ModerationAction) -> tuple[bool, BanResult]:
     IsDevelopmentMode:bool = ConfigData.IsDevelopment()
     BanId:int = User.id
     ServerOwnerId:int = Server.owner_id or 0
@@ -1006,20 +1011,20 @@ Failed Copied Evidence Links:
       else:
         Logger.Log(LogLevel.Debug, "Action was dropped as we are currently in development mode")
       return (True, BanResult.Processed)
-    except discord.NotFound:
+    except NotFound:
       if (Action == ModerationAction.Unban):
         Logger.Log(LogLevel.Verbose, f"User {BanId} is not banned in server")
         return (True, BanResult.NotBanned)
       else:
         Logger.Log(LogLevel.Warn, f"User {BanId} is not a valid user while processing the ban")
         return (False, BanResult.InvalidUser)
-    except discord.Forbidden as forbiddenEx:
+    except Forbidden as forbiddenEx:
       if (Action == ModerationAction.Kick):
         return (False, BanResult.Processed)
       else:
         Logger.Log(LogLevel.Error, f"We do not have ban/unban permissions in this server {ServerInfo} owned by {ServerOwnerId}! Err: {str(forbiddenEx)}")
         return (False, BanResult.LostPermissions)
-    except discord.HTTPException as ex:
+    except HTTPException as ex:
       if (ex.code == 30035):
         Logger.Log(LogLevel.Warn, f"Hit the bans exceeded error while trying to perform actions on server {ServerInfo}")
         return (False, BanResult.BansExceeded)
@@ -1030,11 +1035,11 @@ Failed Copied Evidence Links:
       Logger.Log(LogLevel.Warn, f"We encountered an error {(str(ex))} while trying to perform for server {ServerInfo} owned by {ServerOwnerId}!")
     return (False, BanResult.Error)
 
-  async def RetryActionForServer(self, Server:discord.Guild, User:DiscordPerson, Reason:str, Action:ModerationAction):
+  async def RetryActionForServer(self, Server:Guild, User:DiscordPerson, Reason:str, Action:ModerationAction):
     NumRetries:int = 0
     BanId:int = User.id
-    RetryLimit:int = ConfigData["MaxActionRetries"]
-    SleepStart:float = ConfigData["SleepAmount"]
+    RetryLimit:int = ConfigData.get("MaxActionRetries", 2)
+    SleepStart:float = ConfigData.get("SleepAmount", 10.0)
     while NumRetries <= RetryLimit:
       await asyncio.sleep(SleepStart * (NumRetries + 1))
       Logger.Log(LogLevel.Log, f"Attempting to retry {Action} on {Server.id}, attempt {NumRetries}/{RetryLimit}")
@@ -1054,8 +1059,8 @@ Failed Copied Evidence Links:
       NumRetries += 1
 
   # Handles messaging to server moderators if a ban fails.
-  async def PostBanFailureInformation(self, Server:discord.Guild, UserId:int, Reason:BanResult, Action:ModerationAction):
-    if (ConfigData["CanSendServerErrorMessages"] == False):
+  async def PostBanFailureInformation(self, Server:Guild, UserId:int, Reason:BanResult, Action:ModerationAction):
+    if (ConfigData.get("CanSendServerErrorMessages", True) == False):
       return
 
     ChannelIDToPost = self.Database.GetChannelIdForServer(Server.id)
@@ -1063,7 +1068,7 @@ Failed Copied Evidence Links:
       return
 
     ServerIDStr:str = self.GetServerInfoStr(Server)
-    DiscordChannel = self.get_channel(ChannelIDToPost)
+    DiscordChannel:OptionalChannel = self.GetChannelById(ChannelIDToPost)
     if (DiscordChannel is None):
       Logger.Log(LogLevel.Error, f"Could not resolve the channel {ChannelIDToPost} for server {ServerIDStr}")
       return
@@ -1083,8 +1088,8 @@ Failed Copied Evidence Links:
       return
 
     User:OptionalDiscordPerson = await self.LookupUser(UserId, Server)
-    FailureEmbed:discord.Embed = self.CreateBaseEmbed(f"WARNING: Failed to {Action} user!")
-    FailureEmbed.color = discord.Colour.dark_red()
+    FailureEmbed:Embed = self.CreateBaseEmbed(f"WARNING: Failed to {Action} user!")
+    FailureEmbed.color = Colour.dark_red()
     if (User is not None):
       FailureEmbed.add_field(name="User", value=User.mention)
 

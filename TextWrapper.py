@@ -1,12 +1,19 @@
 # A class that reads in a text.toml file that can be used to specify messages to an user.
 # It works a lot like the Config class.
+from __future__ import annotations
+from typing import Any, Self, TypeVar, Union, cast
 import tomllib
+
+# The most unholy of pyright hacks that accomplish these lookups nicely
+type NestedText = dict[str, Union['NestedText', str]]
+type NestedStrDict = dict[str, 'str|NestedStrDict']
+TextLibStrArg = TypeVar('TextLibStrArg', str,NestedStrDict,Any)
 
 class TextLibrary():
   __HasLoaded: bool = False
-  def __new__(cls):
+  def __new__(cls) -> Self | 'TextLibrary':
     if not hasattr(cls, 'instance'):
-      cls.instance = super(TextLibrary, cls).__new__(cls)
+      cls.instance:'TextLibrary' = super(TextLibrary, cls).__new__(cls)
     return cls.instance
 
   def __init__(self):
@@ -16,16 +23,16 @@ class TextLibrary():
     if (self.__HasLoaded):
       return
 
-    Data = {}
+    Data:NestedText = {}
 
     with open("TextStrings.toml", "rb") as strings_file:
       Data = tomllib.load(strings_file)
 
-    self.__dict__ = Data
+    self.__dict__:NestedText = Data
     self.__HasLoaded = True
 
-  def __getitem__(self, item):
-    return self.__dict__[item]
+  def __getitem__(self, item: TextLibStrArg) -> TextLibStrArg:
+    return cast(TextLibStrArg, self.__dict__[str(item)])
 
 if __name__ == '__main__':
   Messages:TextLibrary = TextLibrary()
