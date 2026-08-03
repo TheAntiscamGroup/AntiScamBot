@@ -125,7 +125,7 @@ class GlobalScamCommands(app_commands.Group):
       if (interaction.channel.permissions_for(cast(Member, interaction.user)).ban_members):
         MakeWhisper = whisper
 
-    await interaction.response.send_message(ToolLinkURL, delete_after=300.0, ephemeral=MakeWhisper)
+    await interaction.response.send_message(Messages["cmds"]["tool"].format(link=ToolLinkURL), delete_after=300.0, ephemeral=MakeWhisper)
 
   @app_commands.command(name="config", description="Set ScamGuard Settings")
   @app_commands.checks.has_permissions(ban_members=True)

@@ -20,6 +20,7 @@ fatal = "Unable to delete the Ban Notification Webhook, you will have to do it m
 
 [cmds]
 settings = "ScamGuard Settings"
+tool = "You can add the ScamGuard User Tool to your Discord profile to make reporting messages much easier. [Click below to install]({link})."
 
 # General command errors
 # Yeah I know, I screwed this one up but then didn't want to bother to go back and fix it
