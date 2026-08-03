@@ -19,7 +19,7 @@ class SubmitScamReport(ui.Modal):
   # TODO: Make this a dropdown selector to make it easier for others. This probably shouldn't be done until everything
   # moves over to the ui.Label stuff.
   TypeOfScam:TextInputView  = ui.TextInput(label=Messages["report"]["type"]["label"], required=True,
-                    placeholder=Messages["report"]["type"]["msg"], max_length=50, min_length=10)
+                    placeholder=Messages["report"]["type"]["msg"], max_length=50, min_length=4)
 
   Reasoning:TextInputView = ui.TextInput(label=Messages["report"]["details"]["label"],
                     placeholder=Messages["report"]["details"]["msg"],
