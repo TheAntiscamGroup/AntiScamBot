@@ -17,7 +17,7 @@
   "reportExplicitAny": false,
   "reportDeprecated": false,
   "reportUnreachable": "hint",
-  "reportImportCycles": "information",
+  "reportImportCycles": false,
   "reportUnusedParameter": "hint",
   "reportUnnecessaryTypeIgnoreComment": false,
 
