@@ -40,7 +40,7 @@ class RelayMessage:
     self.Data = InData
 
   @staticmethod
-  def IsValid(InType: Any) -> bool:
+  def IsValid(InType:Any) -> bool:
     return InType != None and type(InType).__name__ == "RelayMessage"
 
 class RelayServer:
@@ -53,10 +53,10 @@ class RelayServer:
   HasPrintedStop:bool = False
   ControlBotId:int = -1
   BotInstance:ScamGuard
-  AcceptListener: selectors.DefaultSelector
-  ListenSocket: Listener
+  AcceptListener:selectors.DefaultSelector
+  ListenSocket:Listener
 
-  def __init__(self, InControlBotId: int, InBotInstance: ScamGuard):
+  def __init__(self, InControlBotId:int, InBotInstance:ScamGuard):
     self.ControlBotId = InControlBotId
     self.BotInstance = InBotInstance
     if (UseUnixSockets()):
@@ -178,12 +178,12 @@ class RelayServer:
             DestConnection.send(Message)
 
 class RelayClient:
-  BotID: int = -1
-  Connection: IPCConnection|None
-  SentHello: bool
-  FunctionRouter: dict[RelayMessageType, InstanceCallable]
+  BotID:int = -1
+  Connection:IPCConnection|None
+  SentHello:bool
+  FunctionRouter:dict[RelayMessageType, InstanceCallable]
 
-  def __init__(self, LocationAddr: str, InBotID: int=-1):
+  def __init__(self, LocationAddr:str, InBotID:int=-1):
     self.SentHello = False
     self.FunctionRouter = {}
 
@@ -208,7 +208,7 @@ class RelayClient:
     DataPayload:InstanceCallableArguments={}
     match Type:
       case RelayMessageType.BanUser | RelayMessageType.UnbanUser | RelayMessageType.Kick:
-        ReasonWrap: str = Reason if Reason is not None else ""
+        ReasonWrap:str = Reason if Reason is not None else ""
         DataPayload={"TargetUser": TargetUserId, "AuthName": AuthName, "Reason": ReasonWrap}
       case RelayMessageType.ProcessServerActivation:
         DataPayload={"TargetUser": TargetUserId, "TargetServer": TargetServer}
@@ -224,7 +224,7 @@ class RelayClient:
 
     return RelayMessage(Type, self.BotID, Destination, DataPayload)
 
-  def RegisterFunction(self, OnMessageType:RelayMessageType, FunctionToExecute: InstanceCallable):
+  def RegisterFunction(self, OnMessageType:RelayMessageType, FunctionToExecute:InstanceCallable):
     if (not OnMessageType in self.FunctionRouter):
       Logger.Log(LogLevel.Verbose, f"Registering function type {str(OnMessageType)} for {str(self)}")
       self.FunctionRouter[OnMessageType] = FunctionToExecute
@@ -310,7 +310,7 @@ class RelayClient:
         Logger.Log(LogLevel.Log, f"Bot #{self.BotID} just got a message of type {RelayedMessage.Type}")
 
       # Rework the arguments in a way that we can explode map them programmatically
-      Arguments: InstanceCallableArguments|None = None
+      Arguments:InstanceCallableArguments|None = None
       if (RelayedMessage.Data is not None):
         match RelayedMessage.Type:
           case RelayMessageType.BanUser | RelayMessageType.UnbanUser | RelayMessageType.Kick:

@@ -113,7 +113,7 @@ class GlobalScamCommands(app_commands.Group):
   @app_commands.describe(whisper='If the link should be not whispered (only changeable if you are a mod)')
   @app_commands.checks.cooldown(1, 2.0)
   async def InstallScamGuardUser_Global(self, interaction:Interaction, whisper:bool):
-    ToolLinkURL: str = ConfigData.get("ToolLink", "")
+    ToolLinkURL:str = ConfigData.get("ToolLink", "")
     if (len(ToolLinkURL) < 4):
       return
 

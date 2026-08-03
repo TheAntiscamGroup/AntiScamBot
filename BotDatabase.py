@@ -246,7 +246,7 @@ class DatabaseDriver():
     self.Database.commit()
 
   ### Server Forbidden ###
-  def ForbidServerActivation(self, ServerId: int, UserId: int):
+  def ForbidServerActivation(self, ServerId:int, UserId:int):
     if (self.Database is None):
       return True
 
@@ -262,7 +262,7 @@ class DatabaseDriver():
     self.Database.commit()
     return True
 
-  def RemoveForbiddenActivation(self, ServerId: int):
+  def RemoveForbiddenActivation(self, ServerId:int):
     if (self.Database is None):
       return False
     stmt = select(DeniedServers).where(DeniedServers.discord_server_id==ServerId)
@@ -274,7 +274,7 @@ class DatabaseDriver():
     self.Database.commit()
     return True
 
-  def IsServerForbidden(self, ServerId: int):
+  def IsServerForbidden(self, ServerId:int):
     if (self.Database is None):
       return False
     stmt = select(DeniedServers).where(DeniedServers.discord_server_id==ServerId)

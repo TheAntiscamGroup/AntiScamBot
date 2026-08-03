@@ -4,7 +4,7 @@ from enum import IntEnum, auto
 
 class CompareEnum(IntEnum):
   @override
-  def __lt__(self, other: Any) -> bool|NotImplementedType:
+  def __lt__(self, other:Any) -> bool|NotImplementedType:
     if self.__class__ is other.__class__:
       return self.value < other.value
     return NotImplemented

@@ -96,7 +96,7 @@ class Logger():
       CurrentLoop.create_task(NotificationCallback(f"[{str(Level)}]: {MessageStr}"))
 
   @staticmethod
-  def SetLogLevel(NewLevel: LogLevel):
+  def SetLogLevel(NewLevel:LogLevel):
     global CurrentLoggingLevel
 
     CurrentLoggingLevel = NewLevel

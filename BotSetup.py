@@ -12,7 +12,7 @@ class DatabaseMigrator:
   # from the last database version to this one. The naming scheme should match "upgrade_versionXtoY"
   # Database migrations apply linearly.
   DATABASE_VERSION:int=8
-  VersionMap: dict[int, Callable[..., None]]={}
+  VersionMap:dict[int, Callable[..., None]]={}
   DatabaseCon:Engine
 
   def __init__(self):
@@ -72,7 +72,7 @@ class DatabaseMigrator:
     query = text('select * from banslist')
     banlist = session.execute(query)
 
-    newBanList: list[Ban] = []
+    newBanList:list[Ban] = []
     for bans in banlist:
       currentTime = datetime.timestamp(datetime.strptime(bans[3], '%Y-%m-%d %H:%M:%S.%f'))
       newBan = Ban(
@@ -88,7 +88,7 @@ class DatabaseMigrator:
     query = text('select * from servers')
     serverlist = session.execute(query)
 
-    newServerList: list[Server] = []
+    newServerList:list[Server] = []
     for oldServer in serverlist:
       newServer = Server(
         bot_instance_id = oldServer[4],

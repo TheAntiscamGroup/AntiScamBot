@@ -49,7 +49,7 @@ class BotSettingsPayload:
 
     return self.MessageChannel.id
 
-  def LoadFromDB(self, BotInstance: DiscordBot):
+  def LoadFromDB(self, BotInstance:DiscordBot):
     DB = BotInstance.Database
     ServerInfo:Server|None = DB.GetServerInfo(self.GetServerID())
     if (ServerInfo is None):
@@ -141,7 +141,7 @@ class ServerSettingsView(SelfDeletingView):
     self.CallbackFunction = InCB
 
   @ui.button(label="Confirm Settings", style=ButtonStyle.success, row=4)
-  async def setup(self, interaction: Interaction, button: ui.Button[ui.view.BaseView]):
+  async def setup(self, interaction:Interaction, button:ui.Button[ui.view.BaseView]):
     # Couple of quick reference settings
     Bot = GetBot(interaction)
     DB = Bot.Database

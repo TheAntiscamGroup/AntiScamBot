@@ -16,11 +16,11 @@ Messages:TextLibrary = TextLibrary()
 # This transformer allows us to take in a discord id (as the default int is too small)
 # and properly convert it to a value that we can use to observe Discord data
 class BaseIdTransformer(app_commands.Transformer):
-  async def OnTransform(self, interaction: Interaction, TargetId:int) -> int:
+  async def OnTransform(self, interaction:Interaction, TargetId:int) -> int:
     return TargetId
 
   @override
-  async def transform(self, interaction: Interaction, value: str) -> int:
+  async def transform(self, interaction:Interaction, value:str) -> int:
     # Capture any mention targets
     matches = UserIdReg.match(value)
     if (matches is not None):
@@ -52,7 +52,7 @@ class ServerIdTransformer(BaseIdTransformer):
 
 # Simple error handling logger, so that we aren't completely bogging down the application run log with
 # errors and such.
-async def CommandErrorHandler(interaction: Interaction, error: app_commands.AppCommandError):
+async def CommandErrorHandler(interaction:Interaction, error:app_commands.AppCommandError):
   ErrorType = type(error)
   ErrorMsg:str = ""
   if (interaction.command is None):

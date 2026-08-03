@@ -115,11 +115,11 @@ class ScamGuardServerSetup():
       await ActivationActions.SendToChannel(self.BotInstance.ActivationChannel, [RequestEmbed])
 
 class ServerActivationApproval(SelfDeletingView):
-  Parent: ScamGuardServerSetup
+  Parent:ScamGuardServerSetup
   Payload:BotSettingsPayload
   HasInteracted:bool = False
 
-  def __init__(self, Parent: ScamGuardServerSetup, InPayload:BotSettingsPayload):
+  def __init__(self, Parent:ScamGuardServerSetup, InPayload:BotSettingsPayload):
     self.Parent = Parent
     self.Payload = InPayload
 

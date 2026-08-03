@@ -6,17 +6,17 @@ if TYPE_CHECKING:
   from Types import DiscordPerson
 
 class ScamReportPayload():
-  ReportingUserName: str
-  ReportingUserId: int
-  ReportedServer: str
-  ReportedServerId: int
-  ReportedUserGlobalName: str
-  ReportedUserName: str
-  ReportedUserId: int
-  TypeOfScam: str
-  Reasoning: str
-  Evidence: list[str]
-  ReportWebhook: Webhook
+  ReportingUserName:str
+  ReportingUserId:int
+  ReportedServer:str
+  ReportedServerId:int
+  ReportedUserGlobalName:str
+  ReportedUserName:str
+  ReportedUserId:int
+  TypeOfScam:str
+  Reasoning:str
+  Evidence:list[str]
+  ReportWebhook:Webhook
 
   def __init__(self, interaction:Interaction, ReportedUser:DiscordPerson, EvidenceList:list[str], ScamType:str, Reasoning:str) -> None:
     self.ReportingUserName = interaction.user.name

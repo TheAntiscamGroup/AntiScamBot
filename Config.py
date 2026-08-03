@@ -87,7 +87,7 @@ class Config():
 
   @staticmethod
   def GetNumberOfInstances() -> int:
-    CryptoKeys: SubInstanceValues = Config.GetAllSubTokens()
+    CryptoKeys:SubInstanceValues = Config.GetAllSubTokens()
     if (CryptoKeys is None):
       return 0
     return len(CryptoKeys)

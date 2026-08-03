@@ -19,10 +19,10 @@ if TYPE_CHECKING:
 
 if __name__ == '__main__':
   ### MAIN INSTANCE SETUP ###
-  CommandControlServer: Object=Object(id=ConfigData.get("ControlServer", -1))
-  ScamGuardBot: ScamGuard = ScamGuard(AssignedBotID=ConfigData.get("ControlBotID", 0))
-  MaintainerRoleID: int=ConfigData.get("MaintainerRole", 0)
-  ApproverRoleID: int=ConfigData.get("ApproverRole", 0)
+  CommandControlServer:Object=Object(id=ConfigData.get("ControlServer", -1))
+  ScamGuardBot:ScamGuard = ScamGuard(AssignedBotID=ConfigData.get("ControlBotID", 0))
+  MaintainerRoleID:int=ConfigData.get("MaintainerRole", 0)
+  ApproverRoleID:int=ConfigData.get("ApproverRole", 0)
 
   # These are all the main ScamGuard control commands for usage in the control server, these
   # do not get used in any other server, thus their very strange location and setup wrapping
@@ -63,7 +63,7 @@ if __name__ == '__main__':
       return
 
     if (ScamGuardBot.Database.IsInServer(server)):
-      BotInstanceId: int|None = ScamGuardBot.Database.GetBotIdForServer(server)
+      BotInstanceId:int|None = ScamGuardBot.Database.GetBotIdForServer(server)
       if (BotInstanceId is None):
         await interaction.response.send_message(f"Unable to find the bot instance for server {server}")
         return

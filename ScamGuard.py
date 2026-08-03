@@ -24,7 +24,7 @@ ConfigData:Config=Config()
 
 @final
 class ScamGuard(DiscordBot):
-  ServerHandler: RelayServer
+  ServerHandler:RelayServer
   HasStartedInstances:bool = False
   SubProcess:dict[int, Process|None]={}
 
@@ -182,7 +182,7 @@ class ScamGuard(DiscordBot):
     await self.StartAllInstances()
 
   ### Thread handling (for automated checks) ###
-  async def LeaveThread(self, thread: Thread) -> bool:
+  async def LeaveThread(self, thread:Thread) -> bool:
     try:
       await thread.leave()
       return True
@@ -193,7 +193,7 @@ class ScamGuard(DiscordBot):
         Logger.Log(LogLevel.Warn, f"Unable to leave the thread {thread.id}, encountered exception {str(ex)}")
     return False
 
-  async def on_thread_join(self, thread: Thread):
+  async def on_thread_join(self, thread:Thread):
     ControlServerID:int = ConfigData.get("ControlServer", -1)
     ExternalReportID:int = ConfigData.get("ExternalReportChannel", -1)
     InviteUserID:int = ConfigData.get("ThreadInviteUser", -1)

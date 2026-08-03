@@ -51,13 +51,13 @@ class DiscordBot(Client):
   # Channel to send updates as to when someone is banned/unbanned
   AnnouncementChannel:OptionalChannel = None
   ReportChannel:OptionalForum = None
-  ClientHandler: RelayClient|None = None
-  ReportChannelTag: ForumTag|None = None
-  ServerSetupHelper: ScamGuardServerSetup
+  ClientHandler:RelayClient|None = None
+  ReportChannelTag:ForumTag|None = None
+  ServerSetupHelper:ScamGuardServerSetup
   LoggingMessageQueue:SimpleQueue[str]
   BotID:int = -1
 
-  def __init__(self, RelayLocation: str, AssignedBotID:int=-1):
+  def __init__(self, RelayLocation:str, AssignedBotID:int=-1):
     self.Database:DatabaseDriver = DatabaseDriver()
     # initialize other values
     self.AsyncTasks:set[Task[AsyncTaskFunc]] = set()
@@ -88,7 +88,7 @@ class DiscordBot(Client):
   def __del__(self):
     Logger.Log(LogLevel.Notice, f"Closing the discord scam bot instance #{self.BotID} {self}")
 
-  def SetupClientConnection(self, RelayLocation: str):
+  def SetupClientConnection(self, RelayLocation:str):
     Logger.Log(LogLevel.Log, f"Instance #{self.BotID} starting relay client")
 
     if (self.ClientHandler is None):
@@ -207,7 +207,7 @@ class DiscordBot(Client):
       self.AnnouncementChannel = None
 
     ChannelCheck = ConfigData.get("ReportChannel", -1)
-    ReportTag: str = ConfigData.get("ReportChannelTag", "")
+    ReportTag:str = ConfigData.get("ReportChannelTag", "")
     if (ChannelCheck > 0 and ReportTag != ""):
       self.ReportChannel = cast(OptionalForum, self.get_channel(ChannelCheck))
       if (self.ReportChannel is not None):
@@ -485,8 +485,8 @@ Failed Copied Evidence Links:
     # Find if we can even use threads (determined by if we can mention any of the moderators)
     MentionStr:str = ""
     # Need this to actually notify people
-    MentionPerms: AllowedMentions = AllowedMentions(roles=True, users=True)
-    MentionRoles: Sequence[Role] = []
+    MentionPerms:AllowedMentions = AllowedMentions(roles=True, users=True)
+    MentionRoles:Sequence[Role] = []
     # Find all the roles that can ban members, we're about to mention them directly
     for RoleCheck in Server.roles:
       if (RoleCheck.permissions.ban_members and RoleCheck.mentionable):
@@ -503,8 +503,8 @@ Failed Copied Evidence Links:
 
     BotMember:Member = Server.me
     # Try to find the channel that we can potentially post in
-    ChannelSet: OptionalChannel = None
-    ChannelPermissionList: list[tuple[TextChannel, ChannelPostPermissions]] = []
+    ChannelSet:OptionalChannel = None
+    ChannelPermissionList:list[tuple[TextChannel, ChannelPostPermissions]] = []
     if (Server.system_channel is not None):
       ChannelPermissionList.append((Server.system_channel, self.GetChannelPostPerms(Server.system_channel, BotMember, CanCreatePrivateThread)))
 
@@ -515,22 +515,22 @@ Failed Copied Evidence Links:
       ChannelPermissionList.append((Server.safety_alerts_channel, self.GetChannelPostPerms(Server.safety_alerts_channel, BotMember, CanCreatePrivateThread)))
 
     # Find how many of the above we have added.
-    StartingLength: int = len(ChannelPermissionList)
+    StartingLength:int = len(ChannelPermissionList)
 
     # Rank sort all the potential channels, max add 5 in addition to the above.
     # I'm thinking it's better to go through the older channels first
     # as the first few channels are probably things like "rules" and "info"
     # and those are probably not ones we can message in anyways
-    ChannelsQueried: int = 0
+    ChannelsQueried:int = 0
     OldestList = sorted(Server.text_channels, key=lambda chan: chan.created_at)
-    MaxSortLimit: int = ConfigData.get("MaxRankSortForWelcomeMessage", 5)
-    MaxChannelsQuery: int = ConfigData.get("MaxChannelsToQueryForWelcomeMessage", 10)
+    MaxSortLimit:int = ConfigData.get("MaxRankSortForWelcomeMessage", 5)
+    MaxChannelsQuery:int = ConfigData.get("MaxChannelsToQueryForWelcomeMessage", 10)
     for OldChannel in OldestList:
       # Break out on 5 for memory purposes.
       if (len(ChannelPermissionList) - StartingLength >= MaxSortLimit or ChannelsQueried >= MaxChannelsQuery):
         break
 
-      HighestPermission: ChannelPostPermissions = self.GetChannelPostPerms(OldChannel, BotMember, CanCreatePrivateThread)
+      HighestPermission:ChannelPostPermissions = self.GetChannelPostPerms(OldChannel, BotMember, CanCreatePrivateThread)
       if (HighestPermission is not ChannelPostPermissions.NoPerms):
         ChannelPermissionList.append((OldChannel, HighestPermission))
       ChannelsQueried += 1
@@ -543,9 +543,9 @@ Failed Copied Evidence Links:
 
     # If we find a channel to send into
     if (ChannelSet is not None):
-      PostEmbed: Embed = self.CreateFirstTimeEmbed()
-      PostedInThread: bool = False
-      ServerStr: str = f"{Server.name}[{ServerId}]"
+      PostEmbed:Embed = self.CreateFirstTimeEmbed()
+      PostedInThread:bool = False
+      ServerStr:str = f"{Server.name}[{ServerId}]"
 
       # Attempt to post our welcome as a private thread
       if (CanCreatePrivateThread):
@@ -634,7 +634,7 @@ Failed Copied Evidence Links:
     # Check to see if a webhook is already installed.
     if (WebhookChannel is not None):
       try:
-        CurrentWebhooks: list[Webhook] = await WebhookChannel.webhooks()
+        CurrentWebhooks:list[Webhook] = await WebhookChannel.webhooks()
         for Webhook in CurrentWebhooks:
           if (Webhook.source_channel is None):
             continue
@@ -660,7 +660,7 @@ Failed Copied Evidence Links:
       await WebhookChannel.send(Messages["webhook"]["remove"]["fatal"])
 
   ### Utils ###
-  def GetChannelById(self, ChannelID: int) -> OptionalChannel:
+  def GetChannelById(self, ChannelID:int) -> OptionalChannel:
     return cast(OptionalChannel, self.get_channel(ChannelID))
 
   def GetServerInfoStr(self, Server:OptionalGuild) -> str:
@@ -681,7 +681,7 @@ Failed Copied Evidence Links:
   async def PostNotification(self, Message:str):
     self.LoggingMessageQueue.put(Message)
 
-  async def ApplySettings(self, NewSettings: 'BotSettingsPayload'):
+  async def ApplySettings(self, NewSettings:'BotSettingsPayload'):
     ServerID:int = NewSettings.GetServerID()
     self.Database.SetFromServerSettings(ServerID, NewSettings)
     if (NewSettings.WantsWebhooks):
@@ -701,7 +701,7 @@ Failed Copied Evidence Links:
   ### Embeds ###
   def CreateBaseEmbed(self, Title:str, ApplyThumbnail:bool=True) -> Embed:
     ReturnEmbed:Embed = Embed(title=Title, colour=Colour.from_rgb(0, 0, 0))
-    ThumbURL: str = ConfigData.get("AppEmbedThumbnail", "")
+    ThumbURL:str = ConfigData.get("AppEmbedThumbnail", "")
     if (len(ThumbURL) > 1 and ApplyThumbnail):
       ReturnEmbed.set_thumbnail(url=ThumbURL)
 

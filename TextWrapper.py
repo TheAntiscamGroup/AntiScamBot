@@ -10,7 +10,7 @@ type NestedStrDict = dict[str, 'str|NestedStrDict']
 TextLibStrArg = TypeVar('TextLibStrArg', str,NestedStrDict,Any)
 
 class TextLibrary():
-  __HasLoaded: bool = False
+  __HasLoaded:bool = False
   def __new__(cls) -> Self | 'TextLibrary':
     if not hasattr(cls, 'instance'):
       cls.instance:'TextLibrary' = super(TextLibrary, cls).__new__(cls)
@@ -31,7 +31,7 @@ class TextLibrary():
     self.__dict__:NestedText = Data
     self.__HasLoaded = True
 
-  def __getitem__(self, item: TextLibStrArg) -> TextLibStrArg:
+  def __getitem__(self, item:TextLibStrArg) -> TextLibStrArg:
     return cast(TextLibStrArg, self.__dict__[str(item)])
 
 if __name__ == '__main__':

@@ -40,7 +40,7 @@ class SubmitScamReport(ui.Modal):
     super().__init__(title=ModalTitle)
 
   @override
-  async def on_submit(self, interaction: Interaction):
+  async def on_submit(self, interaction:Interaction):
     Bot = GetBot(interaction)
     if (self.ReportedUser is None):
       Logger.Log(LogLevel.Error, "Failed to get reported user on scam submission, somehow none???")
@@ -62,7 +62,7 @@ class SubmitScamReport(ui.Modal):
     Bot.AddAsyncTask(Bot.PostScamReport(Payload))
 
   @override
-  async def on_error(self, interaction: Interaction, exceptionError: Exception):
+  async def on_error(self, interaction:Interaction, exceptionError:Exception):
     Logger.Log(LogLevel.Error, f"Encountered Exception with the scam report modal: {str(exceptionError)}")
     ReportedUserId = 0
     if (self.ReportedUser is not None):

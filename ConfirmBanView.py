@@ -19,7 +19,7 @@ class ConfirmBan(SelfDeletingView):
   BotInstance:ScamGuard
   HasInteracted:bool
 
-  def __init__(self, target:int, bot: ScamGuard, reason:str|None=None):
+  def __init__(self, target:int, bot:ScamGuard, reason:str|None=None):
     super().__init__(ViewTimeout=90.0)
     self.TargetId = target
     self.BotInstance = bot
@@ -60,13 +60,13 @@ class ConfirmBan(SelfDeletingView):
       Logger.Log(LogLevel.Warn, f"Could not set the handled tag in {thread.id} {str(ex)}")
 
   @ui.button(label="Confirm Ban", style=ButtonStyle.danger, row=4)
-  async def confirm(self, interaction: Interaction, button: ui.Button[ui.view.BaseView]):
+  async def confirm(self, interaction:Interaction, button:ui.Button[ui.view.BaseView]):
     # Prevent pressing the button multiple times during asynchronous action.
     if (self.HasInteracted):
       return
 
     Sender:DiscordPerson = interaction.user
-    ResponseMsg: str = ""
+    ResponseMsg:str = ""
 
     await interaction.response.defer(thinking=True)
     self.HasInteracted = True
