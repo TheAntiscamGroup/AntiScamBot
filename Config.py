@@ -1,7 +1,7 @@
 # Config singleton for loading configuration data from a json file
 from __future__ import annotations
 import os, copy, json
-from typing import Any, Self, TypeVar, cast, get_args, override
+from typing import Any, Self, TypeVar, cast, override
 from dotenv import load_dotenv
 from Logger import LogLevel, Logger
 
@@ -38,7 +38,7 @@ class Config():
       json.dump(StagingSave, config_file, indent=3)
 
   def get(self, item:str, default:SafeGetRet) -> SafeGetRet:
-    if (self.IsValid(item, ExpectType=get_args(type)[0])):
+    if (self.IsValid(item, ExpectType=type(default))):
       return cast(SafeGetRet, self.__InternalData[item])
 
     return default
@@ -130,5 +130,7 @@ class Config():
 if __name__ == '__main__':
   ConfigData:Config=Config()
   ConfigData.Dump()
+  print(ConfigData.get("ControlServer", -1))
+  print(ConfigData.IsValid("ControlServer", int))
   print(ConfigData.IsValid("NotificationChannel", int))
   print(ConfigData.IsValid("ReportChannelTag", str))

@@ -7,7 +7,7 @@ from ScamReportModal import SubmitScamReport
 from BotServerSettings import ServerSettingsView
 from TextWrapper import TextLibrary
 from Config import Config
-from BotBase import DiscordBot
+from Types import BotType
 
 if TYPE_CHECKING:
   from Types import OptionalDiscordPerson
@@ -17,8 +17,8 @@ ConfigData:Config = Config()
 
 @app_commands.guild_only()
 class GlobalScamCommands(app_commands.Group):
-  def GetInstance(self) -> DiscordBot:
-    return cast(DiscordBot, self.extras["instance"])
+  def GetInstance(self) -> BotType:
+    return cast(BotType, self.extras["instance"])
 
   def IsActivated(self, InteractionId:int) -> bool:
     return (self.GetInstance().Database.IsActivatedInServer(InteractionId))
