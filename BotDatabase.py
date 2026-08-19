@@ -613,7 +613,7 @@ class DatabaseDriver():
       exhaustedUpdate = ExhaustedServer()
       exhaustedUpdate.discord_server_id = str(ServerId)
 
-    if (exhaustedUpdate.current_pos > 0):
+    if (exhaustedUpdate.current_pos is not None and exhaustedUpdate.current_pos > 0):  # pyright: ignore[reportUnnecessaryComparison]
       exhaustedUpdate.current_pos = exhaustedUpdate.current_pos + NumCompleted
     else:
       exhaustedUpdate.current_pos = NumCompleted

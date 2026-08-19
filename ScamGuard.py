@@ -37,9 +37,13 @@ class ScamGuard(DiscordBot):
   async def setup_hook(self):
     if (ConfigData.get("RunBackupEveryXHours", 0.0) > 0.0):
       self.PeriodicBackup.start()
+    else:
+      Logger.Log(LogLevel.Warn, "Skipping start of backup task because of config")
 
     if (ConfigData.get("RunIdleCleanupEveryXHours", 0.0) > 0.0):
       self.PeriodicLeave.start()
+    else:
+      Logger.Log(LogLevel.Warn, "Skipping Idle Cleanup because of config")
 
     self.HandleListenRelay.start()
     self.HandleBanExceed.start()

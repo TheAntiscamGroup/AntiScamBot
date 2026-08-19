@@ -46,20 +46,19 @@ class Config():
   def IsValid(self, Key:str, ExpectType:type[Any]) -> bool:
     try:
       EntryValue:Any = self.__InternalData[Key]
+      #print(f"{EntryValue} is type {type(EntryValue)} check against {ExpectType} == {isinstance(EntryValue, ExpectType)}")
       if (not isinstance(EntryValue, ExpectType)):
+        #print("TYPE FAILURE")
         return False
 
       if (type(EntryValue) is int):
         if (EntryValue <= 0):
           return False
-        else:
-          return True
       elif (type(EntryValue) is str):
         if (len(EntryValue) == 0):
           return False
 
-        return True
-      return False
+      return True
     except(Exception):
       return False
 
@@ -123,6 +122,9 @@ class Config():
   @override
   def __str__(self) -> str:
     return f"{str(self.__dict__)}"
+
+  def IsLoaded(self) -> bool:
+    return self.__HasLoaded
 
   def Dump(self):
     print(self)

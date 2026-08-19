@@ -53,6 +53,23 @@ if __name__ == '__main__':
     else:
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
 
+  @ScamGuardBot.Commands.command(name="setcooldown", description="Adds a server to cooldown", guild=CommandControlServer)
+  @app_commands.checks.has_role(MaintainerRoleID)
+  @app_commands.describe(server='Discord Server to Force Cooldown')
+  async def ForceCooldown(interaction:Interaction, server:app_commands.Transform[int, ServerIdTransformer], count:Optional[int]=-1):
+    if (server <= -1):
+      await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
+      return
+
+    NewCount: int
+    if (count is None or count <= 0):
+      NewCount = ConfigData.get("MaxBulkImports", 100)
+    else:
+      NewCount = count
+
+    if (ScamGuardBot.Database.UpdateServerCooldown(server, NewCount) is not None):
+      await interaction.response.send_message(f"Bot has added {server} to cooldown at ${NewCount}")
+
 
   @ScamGuardBot.Commands.command(name="forceactivate", description="Force activates a server for the bot", guild=CommandControlServer)
   @app_commands.checks.has_role(MaintainerRoleID)

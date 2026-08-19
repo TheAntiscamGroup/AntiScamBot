@@ -129,6 +129,10 @@ class ServerActivationApproval(SelfDeletingView):
   async def setup(self, interaction:Interaction, button:ui.Button[ui.view.BaseView]):
     self.HasInteracted = True
     Bot = GetBot(interaction)
+    ServerID:int = self.Payload.GetServerID()
+    if (Bot.Database.IsActivatedInServer(ServerID)):
+      return
+
     ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
     await interaction.response.send_message(f"Enqueuing activation for server {ServerIDStr}")
     await self.Parent.PushActivation(self.Payload)
@@ -160,6 +164,8 @@ class ServerActivationApproval(SelfDeletingView):
     ServerID:int = self.Payload.GetServerID()
     Bot = GetBot(interaction)
     ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
+    if (Bot.Database.IsActivatedInServer(ServerID)):
+      return
 
     await interaction.response.send_message(f"Activation leaving server {ServerIDStr}.")
 
@@ -174,6 +180,8 @@ class ServerActivationApproval(SelfDeletingView):
     ServerID:int = self.Payload.GetServerID()
     Bot = GetBot(interaction)
     ServerIDStr:str = Bot.GetServerInfoStr(self.Payload.Server)
+    if (Bot.Database.IsActivatedInServer(ServerID)):
+      return
 
     await interaction.response.send_message(f"Activation now forbidden for server {ServerIDStr}.")
     # add the server to the forbid list
