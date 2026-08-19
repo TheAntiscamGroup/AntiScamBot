@@ -61,6 +61,14 @@ if __name__ == '__main__':
       await interaction.response.send_message(Messages["cmds_error"]["invalid_id"], ephemeral=True, delete_after=5.0)
       return
 
+    if (not ScamGuardBot.Database.IsInServer(server)):
+      await interaction.response.send_message(f"Bot is not in server {server}")
+      return
+
+    if (ScamGuardBot.Database.IsProcessingServerCooldown(server)):
+      await interaction.response.send_message(Messages["cmds_error"]["server_already_processing"])
+      return
+
     NewCount: int
     if (count is None or count <= 0):
       NewCount = ConfigData.get("MaxBulkImports", 100)
@@ -68,8 +76,7 @@ if __name__ == '__main__':
       NewCount = count
 
     if (ScamGuardBot.Database.UpdateServerCooldown(server, NewCount) is not None):
-      await interaction.response.send_message(f"Bot has added {server} to cooldown at ${NewCount}")
-
+      await interaction.response.send_message(f"Bot has added {server} to cooldown at {NewCount}")
 
   @ScamGuardBot.Commands.command(name="forceactivate", description="Force activates a server for the bot", guild=CommandControlServer)
   @app_commands.checks.has_role(MaintainerRoleID)
