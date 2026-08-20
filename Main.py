@@ -75,8 +75,13 @@ if __name__ == '__main__':
     else:
       NewCount = count
 
+    ResponseStr: str
     if (ScamGuardBot.Database.UpdateServerCooldown(server, NewCount) is not None):
-      await interaction.response.send_message(f"Bot has added {server} to cooldown at {NewCount}")
+      ResponseStr = f"Bot has added {server} to cooldown at {NewCount}"
+    else:
+      ResponseStr = "Server could not be added for cooldown"
+
+    await interaction.response.send_message(ResponseStr)
 
   @ScamGuardBot.Commands.command(name="removecooldown", description="Removes a server to cooldown", guild=CommandControlServer)
   @app_commands.checks.has_role(MaintainerRoleID)
@@ -94,8 +99,13 @@ if __name__ == '__main__':
       await interaction.response.send_message(Messages["cmds_error"]["server_already_processing"])
       return
 
+    ResponseStr:str
     if (ScamGuardBot.Database.RemoveServerCooldown(server)):
-      await interaction.response.send_message(f"Bot has removed {server} from cooldown")
+      ResponseStr = f"Bot has removed {server} from cooldown"
+    else:
+      ResponseStr = "Could not process server cooldown removal"
+
+    await interaction.response.send_message(ResponseStr)
 
   @ScamGuardBot.Commands.command(name="forceactivate", description="Force activates a server for the bot", guild=CommandControlServer)
   @app_commands.checks.has_role(MaintainerRoleID)
