@@ -69,6 +69,8 @@ if __name__ == '__main__':
       await interaction.response.send_message(Messages["cmds_error"]["server_already_processing"])
       return
 
+    NumBans:int = ScamGuardBot.Database.GetNumBans()
+    CurCooldownCount:int|None = ScamGuardBot.Database.GetServerCooldownPos(server)
     NewCount: int
     if (count is None or count <= 0):
       NewCount = ConfigData.get("MaxBulkImports", 100)
@@ -76,7 +78,11 @@ if __name__ == '__main__':
       NewCount = count
 
     ResponseStr: str
-    if (ScamGuardBot.Database.UpdateServerCooldown(server, NewCount) is not None):
+    if (NewCount >= NumBans):
+      ResponseStr = "Provided count is over the number of bans, dropping command"
+    elif (CurCooldownCount is not None and CurCooldownCount + count >= NumBans):  # pyright: ignore[reportOperatorIssue]
+      ResponseStr = "Provided count would be over the current ban amount"
+    elif (ScamGuardBot.Database.UpdateServerCooldown(server, NewCount) is not None):
       ResponseStr = f"Bot has added {server} to cooldown at {NewCount}"
     else:
       ResponseStr = "Server could not be added for cooldown"

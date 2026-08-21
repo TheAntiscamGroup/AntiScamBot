@@ -624,6 +624,16 @@ class DatabaseDriver():
 
     return exhaustedUpdate.current_pos
 
+  def GetServerCooldownPos(self, ServerId:int) -> int|None:
+    if (self.Database is None):
+      return None
+
+    exhaustEntry:ExhaustedServer|None = self.GetServerCooldown(ServerId)
+    if (exhaustEntry is None):
+      return None
+
+    return int(exhaustEntry.current_pos) or 0
+
   def RemoveServerCooldown(self, ServerId:int) -> bool:
     if (self.Database is None):
       return False

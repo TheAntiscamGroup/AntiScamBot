@@ -161,8 +161,15 @@ class ScamGuard(DiscordBot):
     NumBans:int = self.Database.GetNumBans()
     Logger.Log(LogLevel.Notice, f"Attempting to process {ExhaustedListCount} cooldown servers now")
     for Server in ExhaustedList:
-      NumCount:int = NumBans - int(Server.current_pos)
+      CurPos:int = int(Server.current_pos)
       ServerId:int = int(Server.discord_server_id)
+      # If some invalid data somehow happened (usually via commands)
+      if (CurPos > NumBans):
+        self.Database.RemoveServerCooldown(ServerId)
+        Logger.Log(LogLevel.Warn, f"Removing cooldown for {ServerId}, position {CurPos} was bigger than bans")
+        continue
+
+      NumCount:int = NumBans - CurPos
       self.Database.SetProcessingServerCooldown(ServerId, True)
       self.AddAsyncTask(self.ReprocessBansForServer(ServerId, NumCount, True))
       Logger.Log(LogLevel.Log, f"Enqueueing reprocessing of {NumCount} bans for server {ServerId}")
