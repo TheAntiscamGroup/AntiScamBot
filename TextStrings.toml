@@ -88,7 +88,7 @@ yes = "Yes"
 no = "No"
 
 [selector.mod]
-placeholder = "ScamGuard Channel for Mod Messages"
+placeholder = "ScamGuard Channel for Messages"
 needs_value = "A value must be selected for the channel selector!"
 needs_perms = "ScamGuard does not have permissions to see the channel, please give it permissions"
 discord_slow = "Discord is updating our permission view slowly, usually this takes a minute to resolve. Please try again soon."
