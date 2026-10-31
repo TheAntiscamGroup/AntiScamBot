@@ -1,6 +1,6 @@
 # A discord view for handling server activations
 from __future__ import annotations
-from discord import ui, ButtonStyle, Interaction, Colour, Embed, Guild
+from discord import Member, ui, ButtonStyle, Interaction, Colour, Embed, Guild, utils
 from Config import Config
 from Logger import Logger, LogLevel
 from BotServerSettings import ServerSettingsView, BotSettingsPayload
@@ -101,15 +101,24 @@ class ScamGuardServerSetup():
     # Request Embed for the Activation Server
     RequestServer:Guild = Payload.Server
     RequestEmbed:Embed = Embed(title="Activation Request", color = Colour.orange())
+    OwnerID:int|None = RequestServer.owner_id
+    RequesterID:int = Payload.GetUserID()
     RequestEmbed.add_field(name="Server Name", value=f"`{RequestServer.name}`", inline=False)
+    RequestEmbed.add_field(name="Created At", value=f"{utils.format_dt(RequestServer.created_at)}", inline=False)
     if (Payload.InteractiveUser is not None):
       RequestEmbed.add_field(name="Requestor", value=f"`{Payload.InteractiveUser.display_name}`")
       RequestEmbed.add_field(name="Requestor Handle", value=Payload.InteractiveUser.mention)
-      RequestEmbed.add_field(name="Requestor ID", value=f"`{Payload.GetUserID()}`")
+      RequestEmbed.add_field(name="Requestor Creation Date", value=f"{utils.format_dt(Payload.InteractiveUser.created_at)}", inline=False)
+      RequestEmbed.add_field(name="Requestor ID", value=f"`{RequesterID}`")
+    if (RequesterID != OwnerID and RequestServer.owner is not None):
+      ServerOwner:Member = RequestServer.owner
+      RequestEmbed.add_field(name="Owner", value=f"`{ServerOwner.display_name}`", inline=False)
+      RequestEmbed.add_field(name="Owner Creation Date", value=f"{utils.format_dt(ServerOwner.created_at)}")
+      RequestEmbed.add_field(name="Owner ID", value=f"`{OwnerID}`")
     RequestEmbed.add_field(name="Num Members", value=RequestServer.member_count, inline=False)
     if (RequestServer.icon is not None):
       RequestEmbed.set_thumbnail(url=RequestServer.icon.url)
-    RequestEmbed.set_footer(text=f"Server ID: {Payload.GetServerID()} | Requestor ID: {Payload.GetUserID()}")
+    RequestEmbed.set_footer(text=f"Server ID: {Payload.GetServerID()} | Owner ID: {OwnerID} | Requestor ID: {RequesterID}")
 
     if (self.BotInstance.ActivationChannel is not None):
       await ActivationActions.SendToChannel(self.BotInstance.ActivationChannel, [RequestEmbed])
